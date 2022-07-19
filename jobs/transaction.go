@@ -11,7 +11,7 @@ import (
 
 var taskScheduler = gocron.NewScheduler(time.UTC)
 
-func Start(finished chan bool, launchMode string) {
+func SubscribeJob(finished chan bool, launchMode string) {
 	if launchMode == "--py-file" {
 		log.Println("Benchmark started using", launchMode)
 		taskScheduler.Every(30).Seconds().Do(func() {
@@ -77,6 +77,8 @@ func Start(finished chan bool, launchMode string) {
 			log.Println(cmd.Run())
 		})
 	}
+}
 
+func Start() {
 	taskScheduler.StartAsync()
 }

@@ -28,7 +28,10 @@ func main() {
 			fmt.Println("--py-file : execute batch from a file using Python")
 			fmt.Println("--py-db : execute batch from database using Python")
 		} else {
-			jobs.Start(finished, os.Args[1])
+			for _, arg := range os.Args {
+				jobs.SubscribeJob(finished, arg)
+			}
+			jobs.Start()
 			<-finished
 		}
 	} else {
