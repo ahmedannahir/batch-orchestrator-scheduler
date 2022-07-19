@@ -1,4 +1,5 @@
 /.vscode/
 .env
 *.code-workspace
-/jobs/batches/*
+/jobs/batches/*.json
+/logs/*.log
