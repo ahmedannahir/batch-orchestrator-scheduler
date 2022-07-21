@@ -1,5 +1,5 @@
-/.vscode/
-.env
-*.code-workspace
-/jobs/batches/*.json
-/logs/*.log
+/node_modules
+package-lock.json
+package.json
+jobs/*
+/.idea
