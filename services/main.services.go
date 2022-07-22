@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,57 +19,81 @@ type Config struct {
 	Dependencies []string `json:"dependencies"`
 }
 
-func UploadFile(key string, dest string, c *gin.Context) (string, error) {
+func UploadFile(key string, dest string, prefix string, c *gin.Context) (string, error) {
 	file, header, err1 := c.Request.FormFile(key)
 	if err1 != nil {
 		return "", err1
 	}
-	filename := header.Filename
-	out, err2 := os.Create(dest + filename)
+
+	err2 := os.MkdirAll(dest, 0777)
 	if err2 != nil {
 		return "", err2
 	}
-	defer out.Close()
-	_, err3 := io.Copy(out, file)
+
+	out, err3 := os.Create(dest + prefix + header.Filename)
 	if err3 != nil {
 		return "", err3
 	}
+	defer out.Close()
+
+	_, err4 := io.Copy(out, file)
+	if err4 != nil {
+		return "", err4
+	}
+
 	return out.Name(), nil
 }
 
-func InstallDependencies(installDependencyPrefix []string, dependencies []string) error {
-	for _, dependency := range dependencies {
-		cmd := exec.Command(installDependencyPrefix[0], installDependencyPrefix[1], dependency)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Run()
-		return err
+func CreateLog(batchPath string) (*os.File, error) {
+	logPath := strings.ReplaceAll(batchPath, "/scripts/", "/logs/")
+	logPath += ".log"
+	logPathSlice := strings.Split(logPath, "/")
+	logPathSlice = logPathSlice[:len(logPathSlice)-1] // remove last element i.e leave only directories
+
+	err := os.MkdirAll(strings.Join(logPathSlice, "/"), 0777)
+	if err != nil {
+		return nil, err
 	}
+
+	return os.Create(logPath)
+}
+
+func InstallDependencies(dependencies []string, logFile *os.File, installDependencyPrefix []string) error {
+	if len(dependencies) > 0 {
+		cmdParts := append(installDependencyPrefix, "dep_placeholder")
+
+		for _, dependency := range dependencies {
+			cmdParts[len(cmdParts)-1] = dependency
+
+			cmd := exec.Command(cmdParts[0], cmdParts[1:]...)
+			cmd.Stdout = logFile
+			cmd.Stderr = logFile
+			err := cmd.Run()
+			return err
+		}
+	}
+
 	return nil
 }
 
 func ExtractLanguagePrefixes(config Config) ([]string, []string, error) {
-	installDependencyPrefix := make([]string, 2)
-	runBatchPrefix := make([]string, 2)
+	instDepPrefix := []string{}
+	runBatchPrefix := []string{}
 	switch config.Language {
 	case "GO":
 		{
-			installDependencyPrefix[0] = "go"
-			installDependencyPrefix[1] = "get"
-			runBatchPrefix[0] = "go"
-			runBatchPrefix[1] = "run"
+			instDepPrefix = append(instDepPrefix, "go", "get")
+			runBatchPrefix = append(runBatchPrefix, "go", "run")
 		}
 	case "JAVASCRIPT":
 		{
-			installDependencyPrefix[0] = "npm"
-			installDependencyPrefix[1] = "install"
-			runBatchPrefix[0] = "node"
+			instDepPrefix = append(instDepPrefix, "npm", "install")
+			runBatchPrefix = append(runBatchPrefix, "node")
 		}
 	case "PYTHON":
 		{
-			installDependencyPrefix[0] = "pip"
-			installDependencyPrefix[1] = "install"
-			runBatchPrefix[0] = "python"
+			instDepPrefix = append(instDepPrefix, "pip", "install")
+			runBatchPrefix = append(runBatchPrefix, "python")
 		}
 	default:
 		{
@@ -76,18 +101,16 @@ func ExtractLanguagePrefixes(config Config) ([]string, []string, error) {
 		}
 	}
 
-	return installDependencyPrefix, runBatchPrefix, nil
+	return instDepPrefix, runBatchPrefix, nil
 }
 
-func RunBatch(batchPrefix []string, filePath string) error {
+func RunBatch(batchPath string, logFile *os.File, batchPrefix []string) error {
+	cmdParts := append(batchPrefix, batchPath)
+
 	var cmd *exec.Cmd
-	if len(batchPrefix[1]) == 0 {
-		cmd = exec.Command(batchPrefix[0], filePath)
-	} else {
-		cmd = exec.Command(batchPrefix[0], batchPrefix[1], filePath)
-	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd = exec.Command(cmdParts[0], cmdParts[1:]...)
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
 	err := cmd.Run()
 	return err
 }
