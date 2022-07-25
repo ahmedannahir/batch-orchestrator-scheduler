@@ -1,5 +1,6 @@
 /node_modules
 package-lock.json
 package.json
-jobs/*
+jobs/logs
+jobs/scripts
 /.idea

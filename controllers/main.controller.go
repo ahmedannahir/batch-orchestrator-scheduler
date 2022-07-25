@@ -1,9 +1,10 @@
 package controllers
 
 import (
+	"gestion-batches/handlers"
 	"gestion-batches/services"
-	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,40 +12,40 @@ import (
 
 func RunBatch(c *gin.Context) {
 	config, err1 := services.GetConfig("config", c)
-	if err1 != nil {
-		log.Println(err1)
-		c.JSON(http.StatusBadRequest, err1)
-	}
-
-	batchPath, err2 := services.UploadFile("batch", "jobs/scripts/", time.Now().Format("2006-01-02_15-04-05")+"_", c)
-	if err2 != nil {
-		log.Println(err2)
-		c.JSON(http.StatusInternalServerError, err2)
-	}
+	handlers.HandleError(err1, http.StatusBadRequest, c)
 
 	depPrefix, batPrefix, err3 := services.ExtractLanguagePrefixes(config)
-	if err3 != nil {
-		log.Println(err3)
-		c.JSON(http.StatusBadRequest, err3)
-	}
+	handlers.HandleError(err3, http.StatusBadRequest, c)
 
-	logFile, err4 := services.CreateLog(batchPath)
-	if err4 != nil {
-		log.Println(err4)
-		c.JSON(http.StatusInternalServerError, err4)
-	}
+	batchPath, err2 := handlers.UploadFile("batch", "jobs/scripts/", time.Now().Format("2006-01-02_15-04-05")+"_", c)
+	handlers.HandleError(err2, http.StatusInternalServerError, c)
+
+	logFile, err4 := handlers.CreateLog(batchPath.Name())
+	handlers.HandleError(err4, http.StatusInternalServerError, c)
 
 	err5 := services.InstallDependencies(config.Dependencies, logFile, depPrefix)
-	if err5 != nil {
-		log.Println(err5)
-		c.JSON(http.StatusBadRequest, err5)
-	}
+	handlers.HandleError(err5, http.StatusBadRequest, c)
 
-	err6 := services.RunBatch(batchPath, logFile, batPrefix)
-	if err6 != nil {
-		log.Println(err6)
-		c.JSON(http.StatusBadRequest, err6)
-	}
+	services.RunBatch(batchPath.Name(), logFile, batPrefix)
+
+	c.Writer.WriteHeader(http.StatusOK)
+}
+
+func ScheduleBatch(c *gin.Context) {
+	config, err1 := services.GetConfig("config", c)
+	handlers.HandleError(err1, http.StatusBadRequest, c)
+
+	depPrefix, batPrefix, err3 := services.ExtractLanguagePrefixes(config)
+	handlers.HandleError(err3, http.StatusBadRequest, c)
+
+	batchPath, err2 := services.UploadFile("batch", "jobs/scripts/", time.Now().Format("2006-01-02_15-04-05")+"_", c)
+	handlers.HandleError(err2, http.StatusInternalServerError, c)
+
+	err5 := services.InstallDependencies(config.Dependencies, os.Stdout, depPrefix) // to-figure-out-later
+	handlers.HandleError(err5, http.StatusBadRequest, c)
+
+	err6 := services.ScheduleBatch(config, batchPath, batPrefix)
+	handlers.HandleError(err6, http.StatusBadRequest, c)
 
 	c.Writer.WriteHeader(http.StatusOK)
 }
