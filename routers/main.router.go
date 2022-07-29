@@ -13,6 +13,7 @@ func HandleRoutes() {
 
 	MainRouter.POST("/run-batch", controllers.RunBatch)
 	MainRouter.POST("/schedule-batch", controllers.ScheduleBatch)
+	MainRouter.POST("/consecutive-batches", controllers.ConsecutiveBatches)
 
 	MainRouter.Run("127.0.0.1:8080")
 }
