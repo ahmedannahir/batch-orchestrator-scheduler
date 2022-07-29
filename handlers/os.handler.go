@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"io"
+	"mime/multipart"
 	"os"
 	"strings"
 	"time"
@@ -29,6 +30,31 @@ func UploadFile(key string, dest string, prefix string, c *gin.Context) (*os.Fil
 	_, err4 := io.Copy(out, file)
 	if err4 != nil {
 		return nil, err4
+	}
+
+	return out, nil
+}
+
+func UploadFileByFileHeader(fileHeader *multipart.FileHeader, dest string, prefix string, c *gin.Context) (*os.File, error) {
+	err2 := os.MkdirAll(dest, 0777)
+	if err2 != nil {
+		return nil, err2
+	}
+
+	out, err3 := os.Create(dest + prefix + fileHeader.Filename)
+	if err3 != nil {
+		return nil, err3
+	}
+	defer out.Close()
+
+	file, err4 := fileHeader.Open()
+	if err4 != nil {
+		return nil, err4
+	}
+
+	_, err5 := io.Copy(out, file)
+	if err5 != nil {
+		return nil, err5
 	}
 
 	return out, nil
