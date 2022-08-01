@@ -90,13 +90,9 @@ func ConsecBatches(configs []models.Config, batchCmds [][]string, batches []enti
 		errors = append(errors, err1)
 
 		for i := 1; i < len(configs); i++ {
-			if errors[len(errors)-1] == nil {
-				log.Println("Batch ", i, " is done running")
-
+			if (errors[len(errors)-1] == nil) || (errors[len(errors)-1] != nil && configs[i].Independant == true) {
 				err2 := runBatch(batchCmds[i], batches[i], db)
 				errors = append(errors, err2)
-			} else {
-				log.Println("Batch ", i, " threw an error")
 			}
 		}
 		log.Println("The consecutive batches are donne running.")
