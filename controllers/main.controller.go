@@ -1,74 +1,133 @@
 package controllers
 
 import (
-	"gestion-batches/handlers"
 	"gestion-batches/services"
+	"log"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
-func RunBatch(c *gin.Context) {
-	config, err1 := services.GetConfig("config", c)
-	handlers.HandleError(err1, http.StatusBadRequest, c)
+func ScheduleBatch(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		config, err1 := services.GetConfig("config", c)
+		if err1 != nil {
+			log.Println(err1)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err1})
+			return
+		}
 
-	depPrefix, batPrefix, err3 := services.ExtractLanguagePrefixes(config)
-	handlers.HandleError(err3, http.StatusBadRequest, c)
+		depPrefix, batPrefix, err2 := services.ExtractLanguagePrefixes(config)
+		if err2 != nil {
+			log.Println(err2)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err2})
+			return
+		}
 
-	batchPath, err2 := services.UploadFile("batch", "jobs/scripts/", time.Now().Format("2006-01-02_15-04-05")+"_", c)
-	handlers.HandleError(err2, http.StatusInternalServerError, c)
+		configPath, err3 := services.UploadFile("config", "jobs/configs/", time.Now().Format("2006-01-02_15-04-05")+"_", c)
+		if err3 != nil {
+			log.Println(err3)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err3})
+			return
+		}
 
-	logFile, err4 := services.CreateLog(batchPath)
-	handlers.HandleError(err4, http.StatusInternalServerError, c)
+		batchPath, err4 := services.UploadFile("batch", "jobs/scripts/", time.Now().Format("2006-01-02_15-04-05")+"_", c)
+		if err4 != nil {
+			log.Println(err4)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err4})
+			return
+		}
 
-	err5 := services.InstallDependencies(config.Dependencies, logFile, depPrefix)
-	handlers.HandleError(err5, http.StatusBadRequest, c)
+		err5 := services.InstallDependencies(config.Dependencies, os.Stdout, depPrefix) // to-figure-out-later
+		if err5 != nil {
+			log.Println(err5)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err5})
+			return
+		}
 
-	services.RunBatch(batchPath, logFile, batPrefix)
+		batch, _, err6 := services.SaveBatch(configPath, batchPath, db, c)
+		if err6 != nil {
+			log.Println(err6)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err6})
+			return
+		}
 
-	c.Writer.WriteHeader(http.StatusOK)
-}
+		err7 := services.ScheduleBatch(config, batch, batPrefix, db)
+		if err7 != nil {
+			log.Println(err7)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err7})
+			return
+		}
 
-func ScheduleBatch(c *gin.Context) {
-	config, err1 := services.GetConfig("config", c)
-	handlers.HandleError(err1, http.StatusBadRequest, c)
-
-	depPrefix, batPrefix, err2 := services.ExtractLanguagePrefixes(config)
-	handlers.HandleError(err2, http.StatusBadRequest, c)
-
-	batchPath, err3 := services.UploadFile("batch", "jobs/scripts/", time.Now().Format("2006-01-02_15-04-05")+"_", c)
-	handlers.HandleError(err3, http.StatusInternalServerError, c)
-
-	err4 := services.InstallDependencies(config.Dependencies, os.Stdout, depPrefix) // to-figure-out-later
-	handlers.HandleError(err4, http.StatusBadRequest, c)
-
-	err5 := services.ScheduleBatch(config, batchPath, batPrefix)
-	handlers.HandleError(err5, http.StatusBadRequest, c)
-
-	c.Writer.WriteHeader(http.StatusOK)
-}
-
-func ConsecutiveBatches(c *gin.Context) {
-	configs, err1 := services.GetConsecConfig("config", c)
-	handlers.HandleError(err1, http.StatusBadRequest, c)
-
-	batchPaths, err2 := services.UploadMultipleFiles("batches", "jobs/scripts/", time.Now().Format("2006-01-02_15-04-05")+"_", c)
-	handlers.HandleError(err2, http.StatusInternalServerError, c)
-
-	depCmds, batCmds, err3 := services.ExtractMultiLangsPref(configs)
-	handlers.HandleError(err3, http.StatusBadRequest, c)
-
-	for i := 0; i < len(configs); i++ {
-		err := services.InstallDependencies(configs[i].Dependencies, os.Stdout, depCmds[i])
-		handlers.HandleError(err, http.StatusBadRequest, c)
+		c.Writer.WriteHeader(http.StatusOK)
 	}
+}
 
-	services.MatchBatchPaths(configs, &batchPaths)
+func ConsecutiveBatches(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		configs, err1 := services.GetConsecConfig("config", c)
+		if err1 != nil {
+			log.Println(err1)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err1})
+			return
+		}
 
-	err5 := services.ConsecBatches(configs, batCmds, batchPaths)
-	handlers.HandleError(err5, http.StatusBadRequest, c)
+		err2 := services.VerifyConfigsAndBatchesNumber(configs, "batches", c)
+		if err2 != nil {
+			log.Println(err2)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err2})
+			return
+		}
 
-	c.Writer.WriteHeader(http.StatusOK)
+		depCmds, batCmds, err3 := services.ExtractMultiLangsPref(configs)
+		if err3 != nil {
+			log.Println(err3)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err3})
+			return
+		}
+
+		configPath, err4 := services.UploadFile("config", "jobs/configs/", time.Now().Format("2006-01-02_15-04-05")+"_", c)
+		if err4 != nil {
+			log.Println(err4)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err4})
+			return
+		}
+
+		batchPaths, err5 := services.UploadMultipleFiles("batches", "jobs/scripts/", time.Now().Format("2006-01-02_15-04-05")+"_", c)
+		if err1 != nil {
+			log.Println(err5)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err5})
+			return
+		}
+
+		for i := 0; i < len(configs); i++ {
+			err := services.InstallDependencies(configs[i].Dependencies, os.Stdout, depCmds[i])
+			if err != nil {
+				log.Println(err)
+				c.JSON(http.StatusBadRequest, gin.H{"error": err})
+				return
+			}
+		}
+
+		services.MatchBatchAndConfig(configs, &batchPaths)
+
+		batches, _, err6 := services.SaveMultipleBatches(configPath, batchPaths, db, c)
+		if err6 != nil {
+			log.Println(err6)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err6})
+			return
+		}
+
+		err7 := services.ConsecBatches(configs, batCmds, batches, db)
+		if err7 != nil {
+			log.Println(err7)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err7})
+			return
+		}
+
+		c.Writer.WriteHeader(http.StatusOK)
+	}
 }
