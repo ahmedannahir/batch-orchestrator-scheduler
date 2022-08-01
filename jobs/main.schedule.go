@@ -1,7 +1,7 @@
 package jobs
 
 import (
-	"fmt"
+	"gestion-batches/entities"
 	"gestion-batches/handlers"
 	"gestion-batches/models"
 	"log"
@@ -9,24 +9,72 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron"
+	"gorm.io/gorm"
 )
 
 var scheduler = gocron.NewScheduler(time.UTC)
 
-func ScheduleBatch(config models.Config, batchPath string, batchPrefix []string) error {
+func runBatch(batchPrefix []string, batch entities.Batch, db *gorm.DB) error {
+	log.Println("creating log for batch : ", batch.Url)
+	logFile, _ := handlers.CreateLog(batch.Url)
+	defer logFile.Close()
+
+	execution := entities.Execution{
+		Status:     entities.RUNNING,
+		StartTime:  time.Now(),
+		LogFileUrl: logFile.Name(),
+		BatchID:    batch.ID,
+	}
+
+	tx1 := db.Begin()
+
+	log.Println("Saving execution : ", execution, " to the database")
+	results1 := tx1.Create(&execution)
+	if results1.Error != nil {
+		tx1.Rollback()
+		log.Println("An error occured during saving exec to db : ", results1.Error)
+	}
+
+	tx1.Commit()
+
+	log.Println("Running batch : " + batch.Url + "...")
+	cmdParts := append(batchPrefix, batch.Url)
+	cmd := exec.Command(cmdParts[0], cmdParts[1:]...)
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+	err := cmd.Run()
+
+	now := time.Now()
+	execution.EndTime = &now
+
+	if err == nil {
+		log.Println("The batch : " + batch.Url + " is done running.")
+		execution.Status = entities.COMPLETED
+		execution.ExitCode = "exit status 0"
+	} else {
+		log.Println("The batch : " + batch.Url + " threw an error.")
+		execution.Status = entities.FAILED
+		execution.ExitCode = err.Error()
+	}
+
+	tx2 := db.Begin()
+
+	log.Println("Updating batch execution endtime, status and exit code...")
+	results2 := tx2.Save(&execution)
+	if results2.Error != nil {
+		tx2.Rollback()
+		log.Println("An error occured during updating exec in db : ", results2.Error)
+	}
+
+	tx2.Commit()
+
+	return err
+}
+
+func ScheduleBatch(config models.Config, batch entities.Batch, batchPrefix []string, db *gorm.DB) error {
 	job := scheduler.Cron(config.Cron)
 	_, err := job.Do(func() {
-		log.Println("creating log for batch : ", batchPath)
-		logFile, _ := handlers.CreateLog(batchPath)
-		defer logFile.Close()
-
-		log.Println("Running batch : " + batchPath + "...")
-		cmdParts := append(batchPrefix, batchPath)
-		cmd := exec.Command(cmdParts[0], cmdParts[1:]...)
-		cmd.Stdout = logFile
-		cmd.Stderr = logFile
-		cmd.Run()
-		log.Println("The batch : " + batchPath + "is done running.")
+		runBatch(batchPrefix, batch, db)
 	})
 	if err == nil {
 		scheduler.StartAsync()
@@ -34,51 +82,24 @@ func ScheduleBatch(config models.Config, batchPath string, batchPrefix []string)
 	return err
 }
 
-func ConsecBatches(configs []models.Config, batchCmds [][]string, batchPaths []string) error {
+func ConsecBatches(configs []models.Config, batchCmds [][]string, batches []entities.Batch, db *gorm.DB) error {
 	var errors []error
 
 	_, err := scheduler.Cron(configs[0].Cron).Do(func() {
-		log.Println("Creating logfile for the sonsecutive batches ", batchPaths, "...")
-
-		logFile, _ := handlers.CreateLog(batchPaths[0])
-		defer logFile.Close()
-
-		log.Println("Running batch 1 : " + batchPaths[0] + "...")
-		logFile.WriteString(fmt.Sprintln("Batch 1 logs :"))
-
-		cmdParts := append(batchCmds[0], batchPaths[0])
-		cmd := exec.Command(cmdParts[0], cmdParts[1:]...)
-		cmd.Stdout = logFile
-		cmd.Stderr = logFile
-		err1 := cmd.Run()
-		log.Println("The batch : " + batchPaths[0] + " is done running.")
-
+		err1 := runBatch(batchCmds[0], batches[0], db)
 		errors = append(errors, err1)
 
 		for i := 1; i < len(configs); i++ {
-			logFile.WriteString(fmt.Sprintln("\n========================================="))
-			logFile.WriteString(fmt.Sprintln("Batch ", i+1, " logs :"))
-
 			if errors[len(errors)-1] == nil {
-				log.Println("Running batch ", i+1, " : "+batchPaths[i]+"...")
+				log.Println("Batch ", i, " is done running")
 
-				cmdParts := append(batchCmds[i], batchPaths[i])
-				cmd := exec.Command(cmdParts[0], cmdParts[1:]...)
-				cmd.Stdout = logFile
-				cmd.Stderr = logFile
-				err := cmd.Run()
-				if err == nil {
-					log.Println("The batch ", i+1, " : "+batchPaths[i]+" is done running.")
-				} else {
-					log.Println("The batch ", i+1, " : "+batchPaths[i]+" threw an error.")
-				}
-
-				errors = append(errors, err)
+				err2 := runBatch(batchCmds[i], batches[i], db)
+				errors = append(errors, err2)
 			} else {
-				logFile.WriteString(fmt.Sprintln("Batch ", i, "threw an error"))
+				log.Println("Batch ", i, " threw an error")
 			}
 		}
-		log.Println("The consecutive batches :", batchPaths, " are donne running.")
+		log.Println("The consecutive batches are donne running.")
 	})
 	if err == nil {
 		scheduler.StartAsync()
