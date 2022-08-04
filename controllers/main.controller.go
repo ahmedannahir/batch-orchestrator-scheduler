@@ -135,7 +135,7 @@ func ConsecutiveBatches(db *gorm.DB) gin.HandlerFunc {
 
 func RunAfterBatch(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		prevBatchId, err := services.ProcessBatchIdFromParam("id", db, c)
+		prevBatchId, _, err := services.ProcessBatchIdFromParam("id", db, c)
 		if err != nil {
 			log.Println(err)
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -194,5 +194,7 @@ func RunAfterBatch(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err7})
 			return
 		}
+
+		c.Writer.WriteHeader(http.StatusOK)
 	}
 }
