@@ -5,6 +5,7 @@ import "time"
 type ExecutionStatus string
 
 const (
+	IDLE      ExecutionStatus = "IDLE"
 	RUNNING   ExecutionStatus = "RUNNING"
 	COMPLETED ExecutionStatus = "COMPLETED"
 	FAILED    ExecutionStatus = "FAILED"
@@ -17,5 +18,5 @@ type Execution struct {
 	StartTime  time.Time
 	EndTime    *time.Time //default value for time.Time is 0000... instead of null, *time.Time works as intended
 	LogFileUrl string
-	BatchID    uint
+	BatchID    *uint
 }

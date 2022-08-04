@@ -13,6 +13,7 @@ import (
 	"mime/multipart"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -38,7 +39,12 @@ func GetConsecConfig(key string, c *gin.Context) ([]models.Config, error) {
 	}
 
 	log.Println("Parsing config file...")
-	return ParseConsecConfig(configBytes)
+	configs, err1 := ParseConsecConfig(configBytes)
+	for i := 1; i < len(configs); i++ {
+		configs[i].Cron = "1 1 30 2 1" // temp workaround, cron for feb 30th i.e. never, for batches following scheduled batches
+	}
+
+	return configs, err1
 }
 
 func ExtractFile(key string, c *gin.Context) ([]byte, error) {
@@ -180,9 +186,9 @@ func CreateLog(batchPath string) (*os.File, error) {
 	return handlers.CreateLog(batchPath)
 }
 
-func ConsecBatches(configs []models.Config, batchCmds [][]string, batches []entities.Batch, db *gorm.DB) error {
+func ScheduleConsecBatches(configs []models.Config, batchCmds [][]string, batches []entities.Batch, db *gorm.DB) error {
 	log.Println("Scheduling the consecutive batches...")
-	err := jobs.ConsecBatches(configs, batchCmds, batches, db)
+	err := jobs.ScheduleConsecBatches(configs, batchCmds, batches, db)
 	return err
 }
 
@@ -199,7 +205,7 @@ func MatchBatchAndConfig(configs []models.Config, batchPaths *[]string) {
 	*batchPaths = sorted
 }
 
-func SaveBatch(configPath string, batchPath string, db *gorm.DB, c *gin.Context) (entities.Batch, entities.Config, error) {
+func SaveBatch(configPath string, batchPath string, prevBatchId *uint, db *gorm.DB, c *gin.Context) (entities.Batch, entities.Config, error) {
 	configName := c.PostForm("configName")
 	batchName := c.PostForm("batchName")
 	batchDesc := c.PostForm("batchDesc")
@@ -208,31 +214,23 @@ func SaveBatch(configPath string, batchPath string, db *gorm.DB, c *gin.Context)
 		Name: configName,
 		Url:  configPath,
 	}
-	tx := db.Begin()
-
-	result1 := tx.Create(&config)
-	if result1.Error != nil {
-		tx.Rollback()
-		return entities.Batch{}, entities.Config{}, result1.Error
-	}
 
 	batch := entities.Batch{
-		Name:        batchName,
-		Description: batchDesc,
-		Url:         batchPath,
-		ConfigID:    config.ID,
-	}
-	result2 := tx.Create(&batch)
-	if result2.Error != nil {
-		tx.Rollback()
-		return entities.Batch{}, entities.Config{}, result2.Error
+		Name:            batchName,
+		Description:     batchDesc,
+		Url:             batchPath,
+		PreviousBatchID: prevBatchId,
 	}
 
-	tx.Commit()
+	err := handlers.SaveBatch(&config, &batch, db)
+	if err != nil {
+		return entities.Batch{}, entities.Config{}, err
+	}
+
 	return batch, config, nil
 }
 
-func SaveMultipleBatches(configPath string, batchesPaths []string, db *gorm.DB, c *gin.Context) ([]entities.Batch, entities.Config, error) {
+func SaveConsecBatches(configPath string, batchesPaths []string, db *gorm.DB, c *gin.Context) ([]entities.Batch, entities.Config, error) {
 	var batches []entities.Batch
 
 	configName := c.PostForm("configName")
@@ -244,30 +242,21 @@ func SaveMultipleBatches(configPath string, batchesPaths []string, db *gorm.DB, 
 		Url:  configPath,
 	}
 
-	tx := db.Begin()
-
-	result1 := tx.Create(&config)
-	if result1.Error != nil {
-		tx.Rollback()
-		return nil, entities.Config{}, result1.Error
-	}
-
-	for _, batchPath := range batchesPaths {
+	for i := 0; i < len(batchesPaths); i++ {
 		batch := entities.Batch{
 			Name:        batchName,
 			Description: batchDesc,
-			Url:         batchPath,
-			ConfigID:    config.ID,
+			Url:         batchesPaths[i],
+			ConfigID:    &config.ID,
 		}
+
 		batches = append(batches, batch)
 	}
-	result2 := tx.Create(&batches)
-	if result2.Error != nil {
-		tx.Rollback()
-		return nil, entities.Config{}, result2.Error
-	}
 
-	tx.Commit()
+	err := handlers.SaveConsecBatches(&config, &batches, batchesPaths, db)
+	if err != nil {
+		return nil, entities.Config{}, err
+	}
 
 	return batches, config, nil
 }
@@ -279,4 +268,25 @@ func VerifyConfigsAndBatchesNumber(configs []models.Config, key string, c *gin.C
 		return errors.New("Number of configs and batches is not the same")
 	}
 	return nil
+}
+
+func RunAfterBatch(id string, config models.Config, batch entities.Batch, batchPrefix []string, db *gorm.DB) error {
+	return jobs.RunAfterBatch(id, config, batch, batchPrefix, db)
+}
+
+func ProcessBatchIdFromParam(key string, db *gorm.DB, c *gin.Context) (*uint, error) {
+	prevBatchId64, err := strconv.ParseUint(c.Param(key), 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	prevBatchId := uint(prevBatchId64)
+	var batch entities.Batch
+
+	err1 := db.First(&batch, prevBatchId).Error
+	if err1 != nil {
+		return nil, err1
+	}
+
+	return &prevBatchId, nil
 }
