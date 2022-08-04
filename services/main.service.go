@@ -1,7 +1,6 @@
 package services
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"gestion-batches/entities"
@@ -10,7 +9,6 @@ import (
 	"gestion-batches/models"
 	"io/ioutil"
 	"log"
-	"mime/multipart"
 	"os"
 	"os/exec"
 	"strconv"
@@ -19,33 +17,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
-
-func GetConfig(key string, c *gin.Context) (models.Config, error) {
-	log.Println("Reading config file...")
-	configBytes, err := ExtractFile(key, c)
-	if err != nil {
-		return models.Config{}, err
-	}
-
-	log.Println("Parsing config file...")
-	return ParseConfig(configBytes)
-}
-
-func GetConsecConfig(key string, c *gin.Context) ([]models.Config, error) {
-	log.Println("Reading config file...")
-	configBytes, err := ExtractFile(key, c)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Println("Parsing config file...")
-	configs, err1 := ParseConsecConfig(configBytes)
-	for i := 1; i < len(configs); i++ {
-		configs[i].Cron = "1 1 30 2 1" // temp workaround, cron for feb 30th i.e. never, for batches following scheduled batches
-	}
-
-	return configs, err1
-}
 
 func ExtractFile(key string, c *gin.Context) ([]byte, error) {
 	fileHeader, err1 := c.FormFile(key)
@@ -61,34 +32,6 @@ func ExtractFile(key string, c *gin.Context) ([]byte, error) {
 	return ioutil.ReadAll(file)
 }
 
-func UploadFile(key string, dest string, prefix string, c *gin.Context) (string, error) {
-	log.Println("Uploading file : " + key + "...")
-	filePath, err := handlers.UploadFile(key, dest, prefix, c)
-	return filePath.Name(), err
-}
-
-func UploadFileByFileHeader(fileHeader *multipart.FileHeader, dest string, prefix string, c *gin.Context) (string, error) {
-	log.Println("Uploading file : " + fileHeader.Filename + "...")
-	filePath, err := handlers.UploadFileByFileHeader(fileHeader, dest, prefix, c)
-	return filePath.Name(), err
-}
-
-func UploadMultipleFiles(key string, dest string, prefix string, c *gin.Context) ([]string, error) {
-	form, _ := c.MultipartForm()
-	batches := form.File[key]
-	var batchPaths []string
-
-	for _, batch := range batches {
-		batchPath, err := UploadFileByFileHeader(batch, dest, prefix, c)
-		if err != nil {
-			return nil, err
-		}
-		batchPaths = append(batchPaths, batchPath)
-	}
-
-	return batchPaths, nil
-}
-
 func ExtractMultiLangsPref(configs []models.Config) ([][]string, [][]string, error) {
 	depCmds := make([][]string, len(configs))
 	batCmds := make([][]string, len(configs))
@@ -102,18 +45,6 @@ func ExtractMultiLangsPref(configs []models.Config) ([][]string, [][]string, err
 	}
 
 	return depCmds, batCmds, nil
-}
-
-func ParseConfig(configBytes []byte) (models.Config, error) {
-	var config models.Config
-	err := json.Unmarshal(configBytes, &config)
-	return config, err
-}
-
-func ParseConsecConfig(configBytes []byte) ([]models.Config, error) {
-	var config []models.Config
-	err := json.Unmarshal(configBytes, &config)
-	return config, err
 }
 
 func InstallDependencies(dependencies []string, logFile *os.File, installDependencyPrefix []string) error {
@@ -274,19 +205,53 @@ func RunAfterBatch(id string, config models.Config, batch entities.Batch, batchP
 	return jobs.RunAfterBatch(id, config, batch, batchPrefix, db)
 }
 
-func ProcessBatchIdFromParam(key string, db *gorm.DB, c *gin.Context) (*uint, error) {
-	prevBatchId64, err := strconv.ParseUint(c.Param(key), 10, 64)
+func ProcessBatchIdFromParam(key string, db *gorm.DB, c *gin.Context) (*uint, entities.Batch, error) {
+	batchId64, err := strconv.ParseUint(c.Param(key), 10, 64)
 	if err != nil {
-		return nil, err
+		return nil, entities.Batch{}, err
 	}
 
-	prevBatchId := uint(prevBatchId64)
+	batchId := uint(batchId64)
 	var batch entities.Batch
 
-	err1 := db.First(&batch, prevBatchId).Error
+	err1 := db.First(&batch, batchId).Error
 	if err1 != nil {
-		return nil, err1
+		return nil, entities.Batch{}, err1
 	}
 
-	return &prevBatchId, nil
+	return &batchId, batch, nil
+}
+
+func ProcessExecIdFromParam(key string, db *gorm.DB, c *gin.Context) (*uint, entities.Execution, error) {
+	execId64, err := strconv.ParseUint(c.Param(key), 10, 64)
+	if err != nil {
+		return nil, entities.Execution{}, err
+	}
+
+	execId := uint(execId64)
+	var execution entities.Execution
+
+	err1 := db.First(&execution, execId).Error
+	if err1 != nil {
+		return nil, entities.Execution{}, err1
+	}
+
+	return &execId, execution, nil
+}
+
+func ProcessConfigIdFromParam(key string, db *gorm.DB, c *gin.Context) (*uint, entities.Config, error) {
+	configId64, err := strconv.ParseUint(c.Param(key), 10, 64)
+	if err != nil {
+		return nil, entities.Config{}, err
+	}
+
+	configId := uint(configId64)
+	var config entities.Config
+
+	err1 := db.First(&config, configId).Error
+	if err1 != nil {
+		return nil, entities.Config{}, err1
+	}
+
+	return &configId, config, nil
 }
