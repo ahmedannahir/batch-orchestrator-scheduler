@@ -5,6 +5,7 @@ import (
 	"gestion-batches/handlers"
 	"gestion-batches/models"
 	"log"
+	"os"
 	"os/exec"
 	"strconv"
 	"time"
@@ -19,6 +20,9 @@ func runBatch(batchPrefix []string, batch entities.Batch, db *gorm.DB) error {
 	log.Println("creating log for batch : ", batch.Url)
 	logFile, _ := handlers.CreateLog(batch.Url)
 	defer logFile.Close()
+
+	errLogFile, _ := handlers.CreateErrLog(logFile.Name())
+	defer errLogFile.Close()
 
 	execution := entities.Execution{
 		Status:     entities.RUNNING,
@@ -35,8 +39,19 @@ func runBatch(batchPrefix []string, batch entities.Batch, db *gorm.DB) error {
 	cmdParts := append(batchPrefix, batch.Url)
 	cmd := exec.Command(cmdParts[0], cmdParts[1:]...)
 	cmd.Stdout = logFile
-	cmd.Stderr = logFile
+	cmd.Stderr = errLogFile
 	err1 := cmd.Run()
+
+	errLogPath := errLogFile.Name()
+	if err1 != nil {
+		execution.ErrLogFileUrl = &errLogPath
+	} else {
+		errLogFile.Close()
+		err3 := os.Remove(errLogFile.Name())
+		if err3 != nil {
+			log.Println("Error removing Error Log File : ", err3)
+		}
+	}
 
 	err2 := handlers.UpdateExecution(&execution, batch.Url, err1, db)
 	if err2 != nil {

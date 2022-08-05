@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"io"
+	"log"
 	"mime/multipart"
 	"os"
 	"strings"
@@ -72,4 +73,20 @@ func CreateLog(batchPath string) (*os.File, error) {
 	}
 
 	return os.Create(logPath)
+}
+
+func CreateErrLog(outLogPath string) (*os.File, error) {
+	// jobs/logs/2022-08-05_15-19-01_transaction-db.py >> jobs/logs/2022-08-05_15-19-01_transaction-db_err.py
+	strSlice := strings.Split(outLogPath, ".")
+	strSlice = append(strSlice[:len(strSlice)-1], "_err", strSlice[len(strSlice)-1])
+	errLogPath := strings.Join(strSlice, ".")
+
+	log.Println(errLogPath)
+	errLogFile, err := os.Create(errLogPath)
+	if err != nil {
+		log.Println("Error creating Error Log File : ", err)
+		return nil, err
+	}
+
+	return errLogFile, nil
 }
