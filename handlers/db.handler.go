@@ -102,7 +102,7 @@ func SaveConsecBatches(config *entities.Config, batches *[]entities.Batch, batch
 	}
 
 	tx.Commit()
-	log.Println("Batches and config saved to db : ", config, batches)
+	log.Println("Batches and config saved to db : ", *config, *batches)
 
 	return nil
 }
@@ -118,7 +118,7 @@ func SaveExecution(execution *entities.Execution, db *gorm.DB) error {
 	}
 
 	tx.Commit()
-	log.Println("Execution : ", execution, " saved to the database")
+	log.Println("Execution : ", *execution, " saved to the database")
 
 	return nil
 }
