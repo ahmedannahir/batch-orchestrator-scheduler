@@ -65,7 +65,9 @@ func CreateLog(batchPath string) (*os.File, error) {
 	batchPathSlice := strings.Split(batchPath, "/")
 	batchName := batchPathSlice[len(batchPathSlice)-1]
 	batchName = batchName[len("2006-01-02_15-04-05"):]
-	logPath := "jobs/logs/" + time.Now().Format("2006-01-02_15-04-05") + batchName + ".log"
+	now := time.Now()
+
+	logPath := "jobs/logs/" + now.Format("2006-01-02_15-04-05") + batchName + ".log"
 
 	err := os.MkdirAll("jobs/logs/", 0777)
 	if err != nil {

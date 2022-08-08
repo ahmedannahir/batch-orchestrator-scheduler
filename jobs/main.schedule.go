@@ -16,7 +16,7 @@ import (
 
 var scheduler = gocron.NewScheduler(time.UTC)
 
-func runBatch(batchPrefix []string, batch entities.Batch, db *gorm.DB) error {
+func runBatch(config models.Config, lastPrevBatchExec entities.Execution, batchPrefix []string, batch entities.Batch, db *gorm.DB) error {
 	log.Println("creating log for batch : ", batch.Url)
 	logFile, _ := handlers.CreateLog(batch.Url)
 	defer logFile.Close()
@@ -24,9 +24,11 @@ func runBatch(batchPrefix []string, batch entities.Batch, db *gorm.DB) error {
 	errLogFile, _ := handlers.CreateErrLog(logFile.Name())
 	defer errLogFile.Close()
 
+	now := time.Now()
+
 	execution := entities.Execution{
 		Status:     entities.RUNNING,
-		StartTime:  time.Now(),
+		StartTime:  now,
 		LogFileUrl: logFile.Name(),
 		BatchID:    &batch.ID,
 	}
@@ -35,8 +37,12 @@ func runBatch(batchPrefix []string, batch entities.Batch, db *gorm.DB) error {
 		return err
 	}
 
-	log.Println("Running batch : " + batch.Url + "...")
 	cmdParts := append(batchPrefix, batch.Url)
+	if config.PrevBatchInput && batch.PreviousBatchID != nil {
+		cmdParts = append(cmdParts, lastPrevBatchExec.LogFileUrl)
+	}
+
+	log.Println("Running batch : " + batch.Url + "...")
 	cmd := exec.Command(cmdParts[0], cmdParts[1:]...)
 	cmd.Stdout = logFile
 	cmd.Stderr = errLogFile
@@ -61,28 +67,33 @@ func runBatch(batchPrefix []string, batch entities.Batch, db *gorm.DB) error {
 	return err1
 }
 
-func getPermissionToRun(config models.Config, batch entities.Batch, db *gorm.DB) bool {
-	permission := false
-
-	if batch.PreviousBatchID == nil || config.Independant {
-		permission = true
+func getPermissionToRun(config models.Config, batch entities.Batch, db *gorm.DB) (bool, entities.Execution) {
+	if batch.PreviousBatchID == nil {
+		log.Println("Permission to run : true | Independant : ", config.Independant)
+		return true, entities.Execution{}
 	} else {
 		var lastPrevBatchExec entities.Execution
 		db.Last(&lastPrevBatchExec, "batch_id = ?", batch.PreviousBatchID)
-		permission = time.Now().Sub(*lastPrevBatchExec.EndTime).Seconds() < 10 && lastPrevBatchExec.Status == entities.COMPLETED
+		now := time.Now()
+		permission := now.Sub(*lastPrevBatchExec.EndTime).Seconds() < 10 && (lastPrevBatchExec.Status == entities.COMPLETED || config.Independant)
+		log.Println("Permission to run : ", permission, " | Independant : ", config.Independant, " | PrevBatchID : ", batch.PreviousBatchID, " | LastPrevBatchExec : ", lastPrevBatchExec)
+		return permission, lastPrevBatchExec
 	}
 
-	return permission
+}
+
+func batchJobFunc(config models.Config, batch entities.Batch, batchPrefix []string, db *gorm.DB) {
+	permission, lastPrevBatchExec := getPermissionToRun(config, batch, db)
+	if permission {
+		runBatch(config, lastPrevBatchExec, batchPrefix, batch, db)
+	} else {
+		log.Println("Previous batch threw an error. The batch :", batch, " did not run")
+	}
 }
 
 func twoConsecBatch(configs []models.Config, batches []entities.Batch, batchPrefixes [][]string, db *gorm.DB) error {
 	job, err := scheduler.Cron(configs[0].Cron).Tag(strconv.FormatUint(uint64(batches[0].ID), 10)).Do(func() {
-		permission := getPermissionToRun(configs[0], batches[0], db)
-		if permission {
-			runBatch(batchPrefixes[0], batches[0], db)
-		} else {
-			log.Println("Previous batch threw an error. The batch :", batches[0].Url, " did not run")
-		}
+		batchJobFunc(configs[0], batches[0], batchPrefixes[0], db)
 	})
 
 	job.SetEventListeners(nil, func() {
@@ -100,7 +111,7 @@ func twoConsecBatch(configs []models.Config, batches []entities.Batch, batchPref
 
 func ScheduleBatch(config models.Config, batch entities.Batch, batchPrefix []string, db *gorm.DB) error {
 	_, err := scheduler.Cron(config.Cron).Tag(strconv.FormatUint(uint64(batch.ID), 10)).Do(func() {
-		runBatch(batchPrefix, batch, db)
+		batchJobFunc(config, batch, batchPrefix, db)
 	})
 	if err == nil {
 		scheduler.StartAsync()
@@ -126,12 +137,7 @@ func ScheduleConsecBatches(configs []models.Config, batchCmds [][]string, batche
 
 func RunAfterBatch(id string, config models.Config, batch entities.Batch, batchPrefix []string, db *gorm.DB) error {
 	scheduler.Cron("1 1 30 2 1").Tag(strconv.FormatUint(uint64(batch.ID), 10)).Do(func() {
-		permission := getPermissionToRun(config, batch, db)
-		if permission {
-			runBatch(batchPrefix, batch, db)
-		} else {
-			log.Println("Previous batch threw an error. The batch :", batch, " did not run")
-		}
+		batchJobFunc(config, batch, batchPrefix, db)
 	})
 
 	jobs, err := scheduler.FindJobsByTag(id)
