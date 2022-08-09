@@ -7,8 +7,8 @@ type ExecutionStatus string
 const (
 	IDLE      ExecutionStatus = "0"
 	RUNNING   ExecutionStatus = "1"
-	COMPLETED ExecutionStatus = "2"
-	FAILED    ExecutionStatus = "3"
+	FAILED    ExecutionStatus = "2"
+	COMPLETED ExecutionStatus = "3"
 )
 
 type Execution struct {
