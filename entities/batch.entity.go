@@ -5,8 +5,12 @@ type Batch struct {
 	Name            string
 	Description     string
 	Url             string
-	ConfigID        *uint
-	PreviousBatchID *uint `gorm:"unique"`
+	ConfigID        *uint `gorm:"column:configId"`
+	PreviousBatchID *uint `gorm:"unique;column:previousBatchId"`
 	PreviousBatch   *Batch
 	Executions      []Execution `gorm:"foreignKey:BatchID"`
+}
+
+func (Batch) TableName() string {
+	return "batch"
 }

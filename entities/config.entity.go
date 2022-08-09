@@ -6,3 +6,7 @@ type Config struct {
 	Url     string
 	Batches []Batch `gorm:"foreignKey:ConfigID"`
 }
+
+func (Config) TableName() string {
+	return "config"
+}
