@@ -76,7 +76,7 @@ func SaveConsecBatches(config *entities.Config, batches *[]entities.Batch, batch
 			BatchID:   &(*batches)[0].ID,
 		},
 	}
-	for i := 1; i < len(batchesPaths); i++ {
+	for i := 1; i < len(*batches); i++ {
 		(*batches)[i].PreviousBatchID = &(*batches)[i-1].ID
 
 		executions = append(executions, entities.Execution{

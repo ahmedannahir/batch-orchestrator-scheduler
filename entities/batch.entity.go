@@ -2,6 +2,7 @@ package entities
 
 type Batch struct {
 	ID              uint `gorm:"primaryKey"`
+	Timing          string
 	Name            string
 	Description     string
 	Url             string

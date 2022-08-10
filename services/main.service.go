@@ -123,6 +123,7 @@ func ScheduleConsecBatches(configs []models.Config, batchCmds [][]string, batche
 	return err
 }
 
+// TO BE FIXED: Not working as intended - duplicating entries
 func MatchBatchAndConfig(configs []models.Config, batchPaths *[]string) {
 	log.Println("Matching every batch with its config...")
 	var sorted []string
@@ -161,7 +162,7 @@ func SaveBatch(configPath string, batchPath string, prevBatchId *uint, db *gorm.
 	return batch, config, nil
 }
 
-func SaveConsecBatches(configPath string, batchesPaths []string, db *gorm.DB, c *gin.Context) ([]entities.Batch, entities.Config, error) {
+func SaveConsecBatches(configs []models.Config, configPath string, batchesPaths []string, db *gorm.DB, c *gin.Context) ([]entities.Batch, entities.Config, error) {
 	var batches []entities.Batch
 
 	configName := c.PostForm("configName")
@@ -173,8 +174,9 @@ func SaveConsecBatches(configPath string, batchesPaths []string, db *gorm.DB, c 
 		Url:  configPath,
 	}
 
-	for i := 0; i < len(batchesPaths); i++ {
+	for i := 0; i < len(configs); i++ {
 		batch := entities.Batch{
+			Timing:      configs[i].Cron,
 			Name:        batchName,
 			Description: batchDesc,
 			Url:         batchesPaths[i],

@@ -119,7 +119,7 @@ func ConsecutiveBatches(db *gorm.DB) gin.HandlerFunc {
 
 		services.MatchBatchAndConfig(configs, &batchPaths)
 
-		batches, _, err6 := services.SaveConsecBatches(configPath, batchPaths, db, c)
+		batches, _, err6 := services.SaveConsecBatches(configs, configPath, batchPaths, db, c)
 		if err6 != nil {
 			log.Println(err6)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err6})
