@@ -5,19 +5,24 @@ import "time"
 type ExecutionStatus string
 
 const (
-	IDLE      ExecutionStatus = "IDLE"
-	RUNNING   ExecutionStatus = "RUNNING"
-	COMPLETED ExecutionStatus = "COMPLETED"
-	FAILED    ExecutionStatus = "FAILED"
+	IDLE      ExecutionStatus = "0"
+	RUNNING   ExecutionStatus = "1"
+	FAILED    ExecutionStatus = "2"
+	COMPLETED ExecutionStatus = "3"
 )
 
 type Execution struct {
 	ID            uint `gorm:"primaryKey"`
 	Status        ExecutionStatus
-	ExitCode      string
-	StartTime     time.Time
-	EndTime       *time.Time
-	LogFileUrl    string
-	ErrLogFileUrl *string
-	BatchID       *uint
+	Active        bool
+	ExitCode      string     `gorm:"column:exitCode"`
+	StartTime     time.Time  `gorm:"column:startTime"`
+	EndTime       *time.Time `gorm:"column:endTime"`
+	LogFileUrl    string     `gorm:"column:logFileUrl"`
+	ErrLogFileUrl *string    `gorm:"column:errLogFileUrl"`
+	BatchID       *uint      `gorm:"column:batchId"`
+}
+
+func (Execution) TableName() string {
+	return "execution"
 }
