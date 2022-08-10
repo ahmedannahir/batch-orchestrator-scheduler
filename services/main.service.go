@@ -161,7 +161,7 @@ func SaveBatch(configPath string, batchPath string, prevBatchId *uint, db *gorm.
 	return batch, config, nil
 }
 
-func SaveConsecBatches(configPath string, batchesPaths []string, db *gorm.DB, c *gin.Context) ([]entities.Batch, entities.Config, error) {
+func SaveConsecBatches(configs []models.Config, configPath string, batchesPaths []string, db *gorm.DB, c *gin.Context) ([]entities.Batch, entities.Config, error) {
 	var batches []entities.Batch
 
 	configName := c.PostForm("configName")
@@ -175,6 +175,7 @@ func SaveConsecBatches(configPath string, batchesPaths []string, db *gorm.DB, c 
 
 	for i := 0; i < len(batchesPaths); i++ {
 		batch := entities.Batch{
+			Timing:      configs[i].Cron,
 			Name:        batchName,
 			Description: batchDesc,
 			Url:         batchesPaths[i],
