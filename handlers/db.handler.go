@@ -94,12 +94,12 @@ func SaveConsecBatches(config *entities.Config, batches *[]entities.Batch, batch
 		return err3
 	}
 
-	err4 := tx.Save(&executions).Error
-	if err4 != nil {
-		log.Println("An error has occured. Config and batches not saved to db : ", err4)
-		tx.Rollback()
-		return err4
-	}
+	// err4 := tx.Save(&executions).Error
+	// if err4 != nil {
+	// 	log.Println("An error has occured. Config and batches not saved to db : ", err4)
+	// 	tx.Rollback()
+	// 	return err4
+	// }
 
 	tx.Commit()
 	log.Println("Batches and config saved to db : ", *config, *batches)
