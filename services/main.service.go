@@ -117,9 +117,9 @@ func CreateLog(batchPath string) (*os.File, error) {
 	return handlers.CreateLog(batchPath)
 }
 
-func ScheduleConsecBatches(configs []models.Config, batchCmds [][]string, batches []entities.Batch, db *gorm.DB) error {
+func ScheduleConsecBatches(configs []models.Config, batches []entities.Batch, db *gorm.DB) error {
 	log.Println("Scheduling the consecutive batches...")
-	err := jobs.ScheduleConsecBatches(configs, batchCmds, batches, db)
+	err := jobs.ScheduleConsecBatches(configs, batches, db)
 	return err
 }
 
@@ -256,4 +256,13 @@ func ProcessConfigIdFromParam(key string, db *gorm.DB, c *gin.Context) (*uint, e
 	}
 
 	return &configId, config, nil
+}
+
+func UnzipBatch(batchPath string) (string, error) {
+	log.Println("Unzipping batch : ", batchPath, "...")
+	dst := strings.TrimSuffix(batchPath, ".zip")
+
+	err := handlers.UnzipFile(batchPath, dst, os.ModePerm)
+
+	return dst, err
 }

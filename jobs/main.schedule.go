@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -41,7 +42,10 @@ func runBatch(execution *entities.Execution, config models.Config, lastPrevBatch
 
 	tx.Commit()
 
-	cmdParts := append(batchPrefix, batch.Url)
+	script := filepath.Join(batch.Url, "script.sh")
+
+	cmdParts := append(batchPrefix, script)
+
 	if config.PrevBatchInput && batch.PreviousBatchID != nil {
 		cmdParts = append(cmdParts, lastPrevBatchExec.LogFileUrl)
 	}
@@ -95,7 +99,7 @@ func batchJobFunc(execution *entities.Execution, config models.Config, batch ent
 	}
 }
 
-func twoConsecBatch(configs []models.Config, batches []entities.Batch, batchPrefixes [][]string, db *gorm.DB) error {
+func twoConsecBatch(configs []models.Config, batches []entities.Batch, db *gorm.DB) error {
 	execution := entities.Execution{
 		Status:  entities.IDLE,
 		BatchID: &batches[0].ID,
@@ -106,7 +110,7 @@ func twoConsecBatch(configs []models.Config, batches []entities.Batch, batchPref
 	}
 
 	job, err := scheduler.Cron(configs[0].Cron).Tag(strconv.FormatUint(uint64(batches[0].ID), 10)).Do(func() {
-		batchJobFunc(&execution, configs[0], batches[0], batchPrefixes[0], db)
+		batchJobFunc(&execution, configs[0], batches[0], []string{"bash"}, db)
 	})
 
 	job.SetEventListeners(
@@ -177,15 +181,15 @@ func ScheduleBatch(config models.Config, batch entities.Batch, batchPrefix []str
 	return err
 }
 
-func ScheduleConsecBatches(configs []models.Config, batchCmds [][]string, batches []entities.Batch, db *gorm.DB) error {
+func ScheduleConsecBatches(configs []models.Config, batches []entities.Batch, db *gorm.DB) error {
 	for i := 0; i < len(configs)-1; i++ {
-		err := twoConsecBatch(configs[i:i+2], batches[i:i+2], batchCmds[i:i+2], db) // sends i and i+1 elements of the slice, i+2 not included
+		err := twoConsecBatch(configs[i:i+2], batches[i:i+2], db)
 		if err != nil {
 			log.Println("error scheduling subsequent batch ", i+1, " : ", err)
 		}
 	}
 
-	err := ScheduleBatch(configs[len(configs)-1], batches[len(configs)-1], batchCmds[len(configs)-1], db)
+	err := ScheduleBatch(configs[len(configs)-1], batches[len(configs)-1], []string{"bash"}, db)
 	if err != nil {
 		log.Println("error scheduling subsequent batch ", len(configs), " : ", err)
 	}
