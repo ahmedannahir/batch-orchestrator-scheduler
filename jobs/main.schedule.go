@@ -17,7 +17,7 @@ import (
 
 var scheduler = gocron.NewScheduler(time.UTC)
 
-func runBatch(execution *entities.Execution, lastPrevBatchExec entities.Execution, batch entities.Batch, db *gorm.DB) error {
+func RunBatch(execution *entities.Execution, lastPrevBatchExec entities.Execution, batch entities.Batch, db *gorm.DB) error {
 	log.Println("creating log for batch : ", batch.Url)
 	logFile, _ := handlers.CreateLog(batch)
 	defer logFile.Close()
@@ -93,7 +93,7 @@ func getPermissionToRun(batch entities.Batch, db *gorm.DB) (bool, entities.Execu
 func batchJobFunc(execution *entities.Execution, batch entities.Batch, db *gorm.DB) {
 	permission, lastPrevBatchExec := getPermissionToRun(batch, db)
 	if permission {
-		runBatch(execution, lastPrevBatchExec, batch, db)
+		RunBatch(execution, lastPrevBatchExec, batch, db)
 	} else {
 		log.Println("Previous batch threw an error. The batch :", batch, " did not run")
 	}

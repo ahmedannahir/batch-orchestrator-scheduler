@@ -163,3 +163,25 @@ func RunAfterBatch(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusCreated, batch)
 	}
 }
+
+func RunBatch(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		_, batch, err := services.ProcessBatchIdFromParam("id", db, c)
+		if err != nil {
+			log.Println(err)
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Batch not found"})
+			} else {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err})
+			}
+			return
+		}
+
+		err1 := services.RunBatchById(batch, db)
+		if err1 != nil {
+			log.Println(err1)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err1})
+			return
+		}
+	}
+}
