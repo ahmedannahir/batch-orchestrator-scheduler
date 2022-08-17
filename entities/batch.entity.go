@@ -6,7 +6,8 @@ type Batch struct {
 	Name            string
 	Description     string
 	Url             string
-	ConfigID        *uint `gorm:"column:configId"`
+	Independant     bool
+	PrevBatchInput  bool  `gorm:"column:prevBatchInput"`
 	PreviousBatchID *uint `gorm:"unique;column:previousBatchId"`
 	PreviousBatch   *Batch
 	Executions      []Execution `gorm:"foreignKey:BatchID"`

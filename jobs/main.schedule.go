@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"gestion-batches/entities"
 	"gestion-batches/handlers"
-	"gestion-batches/models"
 	"log"
 	"os"
 	"os/exec"
@@ -18,9 +17,9 @@ import (
 
 var scheduler = gocron.NewScheduler(time.UTC)
 
-func runBatch(execution *entities.Execution, config models.Config, lastPrevBatchExec entities.Execution, batchPrefix []string, batch entities.Batch, db *gorm.DB) error {
+func runBatch(execution *entities.Execution, lastPrevBatchExec entities.Execution, batch entities.Batch, db *gorm.DB) error {
 	log.Println("creating log for batch : ", batch.Url)
-	logFile, _ := handlers.CreateLog(batch.Url)
+	logFile, _ := handlers.CreateLog(batch)
 	defer logFile.Close()
 
 	errLogFile, _ := handlers.CreateErrLog(logFile.Name())
@@ -29,7 +28,7 @@ func runBatch(execution *entities.Execution, config models.Config, lastPrevBatch
 	now := time.Now()
 
 	execution.Status = entities.RUNNING
-	execution.StartTime = now
+	execution.StartTime = &now
 	execution.LogFileUrl = logFile.Name()
 	tx := db.Begin()
 
@@ -44,9 +43,10 @@ func runBatch(execution *entities.Execution, config models.Config, lastPrevBatch
 
 	script := filepath.Join(batch.Url, "script.sh")
 
-	cmdParts := append(batchPrefix, script)
+	var cmdParts []string
+	cmdParts = append(cmdParts, "bash", script)
 
-	if config.PrevBatchInput && batch.PreviousBatchID != nil {
+	if batch.PrevBatchInput && batch.PreviousBatchID != nil {
 		cmdParts = append(cmdParts, lastPrevBatchExec.LogFileUrl)
 	}
 
@@ -75,31 +75,31 @@ func runBatch(execution *entities.Execution, config models.Config, lastPrevBatch
 	return err1
 }
 
-func getPermissionToRun(config models.Config, batch entities.Batch, db *gorm.DB) (bool, entities.Execution) {
+func getPermissionToRun(batch entities.Batch, db *gorm.DB) (bool, entities.Execution) {
 	if batch.PreviousBatchID == nil {
-		log.Println("Permission to run : true | Independant : ", config.Independant)
+		log.Println("Permission to run : true | Independant : ", batch.Independant)
 		return true, entities.Execution{}
 	} else {
 		var lastPrevBatchExec entities.Execution
-		db.Last(&lastPrevBatchExec, "batchId = ?", batch.PreviousBatchID)
+		db.Where("status IN ?", []string{string(entities.COMPLETED), string(entities.FAILED)}).Last(&lastPrevBatchExec, "batchId = ?", batch.PreviousBatchID)
 		now := time.Now()
-		permission := now.Sub(*lastPrevBatchExec.EndTime).Seconds() < 10 && (lastPrevBatchExec.Status == entities.COMPLETED || config.Independant)
-		log.Println("Permission to run : ", permission, " | Independant : ", config.Independant, " | PrevBatchID : ", batch.PreviousBatchID, " | LastPrevBatchExec : ", lastPrevBatchExec)
+		permission := now.Sub(*lastPrevBatchExec.EndTime).Seconds() < 10 && (lastPrevBatchExec.Status == entities.COMPLETED || batch.Independant)
+		log.Println("Permission to run : ", permission, " | Independant : ", batch.Independant, " | PrevBatchID : ", batch.PreviousBatchID, " | LastPrevBatchExec : ", lastPrevBatchExec)
 		return permission, lastPrevBatchExec
 	}
 
 }
 
-func batchJobFunc(execution *entities.Execution, config models.Config, batch entities.Batch, batchPrefix []string, db *gorm.DB) {
-	permission, lastPrevBatchExec := getPermissionToRun(config, batch, db)
+func batchJobFunc(execution *entities.Execution, batch entities.Batch, db *gorm.DB) {
+	permission, lastPrevBatchExec := getPermissionToRun(batch, db)
 	if permission {
-		runBatch(execution, config, lastPrevBatchExec, batchPrefix, batch, db)
+		runBatch(execution, lastPrevBatchExec, batch, db)
 	} else {
 		log.Println("Previous batch threw an error. The batch :", batch, " did not run")
 	}
 }
 
-func twoConsecBatch(configs []models.Config, batches []entities.Batch, db *gorm.DB) error {
+func twoConsecBatch(batches []entities.Batch, db *gorm.DB) error {
 	execution := entities.Execution{
 		Status:  entities.IDLE,
 		BatchID: &batches[0].ID,
@@ -109,8 +109,8 @@ func twoConsecBatch(configs []models.Config, batches []entities.Batch, db *gorm.
 		return err
 	}
 
-	job, err := scheduler.Cron(configs[0].Cron).Tag(strconv.FormatUint(uint64(batches[0].ID), 10)).Do(func() {
-		batchJobFunc(&execution, configs[0], batches[0], []string{"bash"}, db)
+	job, err := scheduler.Cron(batches[0].Timing).Tag(strconv.FormatUint(uint64(batches[0].ID), 10)).Do(func() {
+		batchJobFunc(&execution, batches[0], db)
 	})
 
 	job.SetEventListeners(
@@ -143,7 +143,7 @@ func twoConsecBatch(configs []models.Config, batches []entities.Batch, db *gorm.
 	return err
 }
 
-func ScheduleBatch(config models.Config, batch entities.Batch, batchPrefix []string, db *gorm.DB) error {
+func ScheduleBatch(batch entities.Batch, db *gorm.DB) error {
 	execution := entities.Execution{
 		Status:  entities.IDLE,
 		BatchID: &batch.ID,
@@ -153,8 +153,8 @@ func ScheduleBatch(config models.Config, batch entities.Batch, batchPrefix []str
 		return err
 	}
 
-	job, err := scheduler.Cron(config.Cron).Tag(strconv.FormatUint(uint64(batch.ID), 10)).Do(func() {
-		batchJobFunc(&execution, config, batch, batchPrefix, db)
+	job, err := scheduler.Cron(batch.Timing).Tag(strconv.FormatUint(uint64(batch.ID), 10)).Do(func() {
+		batchJobFunc(&execution, batch, db)
 	})
 
 	job.SetEventListeners(
@@ -181,23 +181,23 @@ func ScheduleBatch(config models.Config, batch entities.Batch, batchPrefix []str
 	return err
 }
 
-func ScheduleConsecBatches(configs []models.Config, batches []entities.Batch, db *gorm.DB) error {
-	for i := 0; i < len(configs)-1; i++ {
-		err := twoConsecBatch(configs[i:i+2], batches[i:i+2], db)
+func ScheduleConsecBatches(batches []entities.Batch, db *gorm.DB) error {
+	for i := 0; i < len(batches)-1; i++ {
+		err := twoConsecBatch(batches[i:i+2], db)
 		if err != nil {
 			log.Println("error scheduling subsequent batch ", i+1, " : ", err)
 		}
 	}
 
-	err := ScheduleBatch(configs[len(configs)-1], batches[len(configs)-1], []string{"bash"}, db)
+	err := ScheduleBatch(batches[len(batches)-1], db)
 	if err != nil {
-		log.Println("error scheduling subsequent batch ", len(configs), " : ", err)
+		log.Println("error scheduling subsequent batch ", len(batches), " : ", err)
 	}
 
 	return nil
 }
 
-func RunAfterBatch(id string, config models.Config, batch entities.Batch, batchPrefix []string, db *gorm.DB) error {
+func RunAfterBatch(id *uint, batch entities.Batch, db *gorm.DB) error {
 	execution := entities.Execution{
 		Status:  entities.IDLE,
 		BatchID: &batch.ID,
@@ -208,10 +208,10 @@ func RunAfterBatch(id string, config models.Config, batch entities.Batch, batchP
 	}
 
 	scheduler.Cron("1 1 30 2 1").Tag(strconv.FormatUint(uint64(batch.ID), 10)).Do(func() {
-		batchJobFunc(&execution, config, batch, batchPrefix, db)
+		batchJobFunc(&execution, batch, db)
 	})
 
-	jobs, err := scheduler.FindJobsByTag(id)
+	jobs, err := scheduler.FindJobsByTag(strconv.FormatUint(uint64(*id), 10))
 	if err != nil {
 		return err
 	}

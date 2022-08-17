@@ -3,12 +3,14 @@ package handlers
 import (
 	"archive/zip"
 	"fmt"
+	"gestion-batches/entities"
 	"io"
 	"io/fs"
 	"log"
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,13 +67,13 @@ func UploadFileByFileHeader(fileHeader *multipart.FileHeader, dest string, prefi
 	return out, nil
 }
 
-func CreateLog(batchPath string) (*os.File, error) {
-	batchPathSlice := strings.Split(batchPath, "/")
+func CreateLog(batch entities.Batch) (*os.File, error) {
+	batchPathSlice := strings.Split(batch.Url, "/")
 	batchName := batchPathSlice[len(batchPathSlice)-1]
 	batchName = batchName[len("2006-01-02_15-04-05"):]
 	now := time.Now()
 
-	logPath := "jobs/logs/" + now.Format("2006-01-02_15-04-05") + batchName + ".log"
+	logPath := "jobs/logs/" + now.Format("2006-01-02_15-04-05") + "_" + strconv.FormatUint(uint64(batch.ID), 10) + batchName + ".log"
 
 	err := os.MkdirAll("jobs/logs/", os.ModePerm)
 	if err != nil {

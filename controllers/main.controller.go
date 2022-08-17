@@ -22,13 +22,6 @@ func ScheduleBatch(db *gorm.DB) gin.HandlerFunc {
 
 		now := time.Now()
 
-		configPath, err3 := services.UploadFile("config", "jobs/configs/", now.Format("2006-01-02_15-04-05")+"_", c)
-		if err3 != nil {
-			log.Println(err3)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err3})
-			return
-		}
-
 		batchPath, err4 := services.UploadFile("batch", "jobs/scripts/", now.Format("2006-01-02_15-04-05")+"_", c)
 		if err4 != nil {
 			log.Println(err4)
@@ -43,14 +36,14 @@ func ScheduleBatch(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		batch, _, err6 := services.SaveBatch(configPath, dst, nil, db, c)
+		batch, err6 := services.SaveBatch(config, dst, nil, db, c)
 		if err6 != nil {
 			log.Println(err6)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err6})
 			return
 		}
 
-		err7 := services.ScheduleBatch(config, batch, []string{"bash"}, db)
+		err7 := services.ScheduleBatch(batch, db)
 		if err7 != nil {
 			log.Println(err7)
 			c.JSON(http.StatusBadRequest, gin.H{"error": err7})
@@ -79,13 +72,6 @@ func ConsecutiveBatches(db *gorm.DB) gin.HandlerFunc {
 
 		now := time.Now()
 
-		configPath, err3 := services.UploadFile("config", "jobs/configs/", now.Format("2006-01-02_15-04-05")+"_", c)
-		if err3 != nil {
-			log.Println(err3)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err3})
-			return
-		}
-
 		batchPaths, err4 := services.UploadMultipleFiles("batches", "jobs/scripts/", now.Format("2006-01-02_15-04-05")+"_", c)
 		if err4 != nil {
 			log.Println(err4)
@@ -106,14 +92,14 @@ func ConsecutiveBatches(db *gorm.DB) gin.HandlerFunc {
 			batchDests = append(batchDests, dest)
 		}
 
-		batches, _, err6 := services.SaveConsecBatches(configs, configPath, batchDests, db, c)
+		batches, err6 := services.SaveConsecBatches(configs, batchDests, db, c)
 		if err6 != nil {
 			log.Println(err6)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err6})
 			return
 		}
 
-		err7 := services.ScheduleConsecBatches(configs, batches, db)
+		err7 := services.ScheduleConsecBatches(batches, db)
 		if err7 != nil {
 			log.Println(err7)
 			c.JSON(http.StatusBadRequest, gin.H{"error": err7})
@@ -146,13 +132,6 @@ func RunAfterBatch(db *gorm.DB) gin.HandlerFunc {
 
 		now := time.Now()
 
-		configPath, err3 := services.UploadFile("config", "jobs/configs/", now.Format("2006-01-02_15-04-05")+"_", c)
-		if err3 != nil {
-			log.Println(err3)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err3})
-			return
-		}
-
 		batchPath, err4 := services.UploadFile("batch", "jobs/scripts/", now.Format("2006-01-02_15-04-05")+"_", c)
 		if err4 != nil {
 			log.Println(err4)
@@ -167,14 +146,14 @@ func RunAfterBatch(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		batch, _, err6 := services.SaveBatch(configPath, dest, prevBatchId, db, c)
+		batch, err6 := services.SaveBatch(config, dest, prevBatchId, db, c)
 		if err6 != nil {
 			log.Println(err6)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err6})
 			return
 		}
 
-		err7 := services.RunAfterBatch(c.Param("id"), config, batch, []string{"bash"}, db)
+		err7 := services.RunAfterBatch(prevBatchId, config, batch, db)
 		if err7 != nil {
 			log.Println(err7)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err7})
