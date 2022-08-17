@@ -8,18 +8,9 @@ import (
 	"gorm.io/gorm"
 )
 
-func SaveBatch(config *entities.Config, batch *entities.Batch, db *gorm.DB) error {
+func SaveBatch(batch *entities.Batch, db *gorm.DB) error {
 	log.Println("Saving config and batch in the database...")
 	tx := db.Begin()
-
-	err1 := tx.Create(config).Error
-	if err1 != nil {
-		tx.Rollback()
-		log.Println("An error has occured. Config and batch not saved to db : ", err1)
-		return err1
-	}
-
-	batch.ConfigID = &config.ID
 
 	err2 := tx.Create(batch).Error
 	if err2 != nil {
@@ -28,12 +19,9 @@ func SaveBatch(config *entities.Config, batch *entities.Batch, db *gorm.DB) erro
 		return err2
 	}
 
-	now := time.Now()
 	execution := entities.Execution{
-		Status:    entities.IDLE,
-		StartTime: now,
-		EndTime:   &now,
-		BatchID:   &batch.ID,
+		Status:  entities.IDLE,
+		BatchID: &batch.ID,
 	}
 
 	err3 := tx.Create(&execution).Error
@@ -44,21 +32,14 @@ func SaveBatch(config *entities.Config, batch *entities.Batch, db *gorm.DB) erro
 	}
 
 	tx.Commit()
-	log.Println("Batch and its config saved to db : ", *config, *batch)
+	log.Println("Batch saved to db : ", *batch)
 
 	return nil
 }
 
-func SaveConsecBatches(config *entities.Config, batches *[]entities.Batch, batchesPaths []string, db *gorm.DB) error {
+func SaveConsecBatches(batches *[]entities.Batch, batchesPaths []string, db *gorm.DB) error {
 	log.Println("Saving config and the batches in the database...")
 	tx := db.Begin()
-
-	err1 := tx.Create(config).Error
-	if err1 != nil {
-		log.Println("An error has occured. Config and batches not saved to db : ", err1)
-		tx.Rollback()
-		return err1
-	}
 
 	err2 := tx.Create(batches).Error
 	if err2 != nil {
@@ -67,23 +48,18 @@ func SaveConsecBatches(config *entities.Config, batches *[]entities.Batch, batch
 		return err2
 	}
 
-	now := time.Now()
 	executions := []entities.Execution{
 		{
-			Status:    entities.IDLE,
-			StartTime: now,
-			EndTime:   &now,
-			BatchID:   &(*batches)[0].ID,
+			Status:  entities.IDLE,
+			BatchID: &(*batches)[0].ID,
 		},
 	}
 	for i := 1; i < len(*batches); i++ {
 		(*batches)[i].PreviousBatchID = &(*batches)[i-1].ID
 
 		executions = append(executions, entities.Execution{
-			Status:    entities.IDLE,
-			StartTime: now,
-			EndTime:   &now,
-			BatchID:   &(*batches)[i].ID,
+			Status:  entities.IDLE,
+			BatchID: &(*batches)[i].ID,
 		})
 	}
 
@@ -94,15 +70,8 @@ func SaveConsecBatches(config *entities.Config, batches *[]entities.Batch, batch
 		return err3
 	}
 
-	// err4 := tx.Save(&executions).Error
-	// if err4 != nil {
-	// 	log.Println("An error has occured. Config and batches not saved to db : ", err4)
-	// 	tx.Rollback()
-	// 	return err4
-	// }
-
 	tx.Commit()
-	log.Println("Batches and config saved to db : ", *config, *batches)
+	log.Println("Batches saved to db : ", *batches)
 
 	return nil
 }

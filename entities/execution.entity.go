@@ -9,6 +9,10 @@ const (
 	RUNNING   ExecutionStatus = "1"
 	FAILED    ExecutionStatus = "2"
 	COMPLETED ExecutionStatus = "3"
+	// IDLE      ExecutionStatus = "IDLE"
+	// RUNNING   ExecutionStatus = "RUNNING"
+	// FAILED    ExecutionStatus = "FAILED"
+	// COMPLETED ExecutionStatus = "COMPLETED"
 )
 
 type Execution struct {
@@ -16,7 +20,7 @@ type Execution struct {
 	Status        ExecutionStatus
 	Active        bool
 	ExitCode      string     `gorm:"column:exitCode"`
-	StartTime     time.Time  `gorm:"column:startTime"`
+	StartTime     *time.Time `gorm:"column:startTime"`
 	EndTime       *time.Time `gorm:"column:endTime"`
 	LogFileUrl    string     `gorm:"column:logFileUrl"`
 	ErrLogFileUrl *string    `gorm:"column:errLogFileUrl"`
