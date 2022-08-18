@@ -8,7 +8,6 @@ import (
 type Execution struct {
 	ID            uint `gorm:"primaryKey"`
 	Status        ExecutionStatus.ExecutionStatus
-	Active        bool
 	ExitCode      string     `gorm:"column:exitCode"`
 	StartTime     *time.Time `gorm:"column:startTime"`
 	EndTime       *time.Time `gorm:"column:endTime"`

@@ -12,7 +12,7 @@ func main() {
 
 	err := services.LoadBatchesFromDB(db)
 	if err != nil {
-		log.Panic(err)
+		log.Println(err)
 	}
 	log.Println("Batches from the database are loaded and scheduled.")
 
