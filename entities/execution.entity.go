@@ -1,30 +1,20 @@
 package entities
 
-import "time"
-
-type ExecutionStatus string
-
-const (
-	IDLE      ExecutionStatus = "0"
-	RUNNING   ExecutionStatus = "1"
-	FAILED    ExecutionStatus = "2"
-	COMPLETED ExecutionStatus = "3"
-	// IDLE      ExecutionStatus = "IDLE"
-	// RUNNING   ExecutionStatus = "RUNNING"
-	// FAILED    ExecutionStatus = "FAILED"
-	// COMPLETED ExecutionStatus = "COMPLETED"
+import (
+	"gestion-batches/entities/ExecutionStatus"
+	"time"
 )
 
 type Execution struct {
 	ID            uint `gorm:"primaryKey"`
-	Status        ExecutionStatus
+	Status        ExecutionStatus.ExecutionStatus
 	Active        bool
 	ExitCode      string     `gorm:"column:exitCode"`
 	StartTime     *time.Time `gorm:"column:startTime"`
 	EndTime       *time.Time `gorm:"column:endTime"`
-	LogFileUrl    string     `gorm:"column:logFileUrl"`
+	LogFileUrl    *string    `gorm:"column:logFileUrl"`
 	ErrLogFileUrl *string    `gorm:"column:errLogFileUrl"`
-	BatchID       *uint      `gorm:"column:batchId"`
+	BatchID       *uint      `gorm:"column:batchId;not null"`
 }
 
 func (Execution) TableName() string {
