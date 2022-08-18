@@ -205,3 +205,7 @@ func LoadBatchesFromDB(db *gorm.DB) error {
 
 	return nil
 }
+
+func RunBatchById(batch entities.Batch, db *gorm.DB) error {
+	return jobs.RunBatch(entities.Execution{}, batch, db)
+}

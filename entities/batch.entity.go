@@ -4,6 +4,7 @@ import "gestion-batches/entities/BatchStatus"
 
 type Batch struct {
 	ID              uint `gorm:"primaryKey"`
+	Active          bool
 	Timing          string
 	Name            string
 	Description     string

@@ -77,8 +77,9 @@ func SaveExecutionAndBatchStatus(execution *entities.Execution, batch *entities.
 		return err
 	}
 
+	log.Print("Batch status update : ", (*batch).Status)
+	log.Println("Execution created : ", *execution)
 	tx.Commit()
-
 	return nil
 }
 
@@ -118,7 +119,7 @@ func UpdateExecutionAndBatchStatus(execution *entities.Execution, batch *entitie
 		log.Println("Error retrieving number of current executions running for the batch : ", err2)
 		return err2
 	}
-
+	log.Println("Count : ", count)
 	if count == 0 {
 		batch.Status = BatchStatus.IDLE
 		err3 := tx2.Save(batch).Error
@@ -128,8 +129,9 @@ func UpdateExecutionAndBatchStatus(execution *entities.Execution, batch *entitie
 			return err3
 		}
 	}
-
 	tx2.Commit()
 
+	log.Println("Batch status update : ", (*batch).Status)
+	log.Println("Execution update : ", *execution)
 	return nil
 }
