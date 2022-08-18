@@ -34,7 +34,7 @@ func Init() *gorm.DB {
 		log.Fatal(err2)
 	}
 
-	db.AutoMigrate(&entities.Batch{}, &entities.Execution{})
+	db.AutoMigrate(&entities.User{}, &entities.Profile{}, &entities.Batch{}, &entities.Execution{})
 
 	return db
 }
