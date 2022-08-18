@@ -44,10 +44,10 @@ func DownloadLog(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		c.Header("Content-Disposition", "attachment; filename="+execution.LogFileUrl)
-		c.Header("Content-Disposition", "inline;filename="+execution.LogFileUrl)
+		c.Header("Content-Disposition", "attachment; filename="+*execution.LogFileUrl)
+		c.Header("Content-Disposition", "inline;filename="+*execution.LogFileUrl)
 		c.Header("Content-Transfer-Encoding", "binary")
 		c.Header("Content-Type", "application/octet-stream")
-		c.File(execution.LogFileUrl)
+		c.File(*execution.LogFileUrl)
 	}
 }

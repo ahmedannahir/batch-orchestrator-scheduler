@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"gestion-batches/entities"
+	"gestion-batches/entities/BatchStatus"
 	"gestion-batches/handlers"
 	"gestion-batches/jobs"
 	"gestion-batches/models"
@@ -82,6 +83,7 @@ func SaveBatch(config models.Config, batchPath string, prevBatchId *uint, db *go
 		Description:     batchDesc,
 		Url:             batchPath,
 		Timing:          config.Cron,
+		Status:          BatchStatus.IDLE,
 		Independant:     config.Independant,
 		PrevBatchInput:  config.PrevBatchInput,
 		PreviousBatchID: prevBatchId,
@@ -103,12 +105,13 @@ func SaveConsecBatches(configs []models.Config, batchesPaths []string, db *gorm.
 
 	for i := 0; i < len(configs); i++ {
 		batch := entities.Batch{
-			Timing:         configs[i].Cron,
 			Name:           batchName,
 			Description:    batchDesc,
+			Url:            batchesPaths[i],
+			Timing:         configs[i].Cron,
+			Status:         BatchStatus.IDLE,
 			Independant:    configs[i].Independant,
 			PrevBatchInput: configs[i].PrevBatchInput,
-			Url:            batchesPaths[i],
 		}
 
 		batches = append(batches, batch)
@@ -204,14 +207,5 @@ func LoadBatchesFromDB(db *gorm.DB) error {
 }
 
 func RunBatchById(batch entities.Batch, db *gorm.DB) error {
-	execution := entities.Execution{
-		BatchID: &batch.ID,
-	}
-
-	err := db.Create(&execution).Error
-	if err != nil {
-		return err
-	}
-
-	return jobs.RunBatch(&execution, entities.Execution{}, batch, db)
+	return jobs.RunBatch(entities.Execution{}, batch, db)
 }

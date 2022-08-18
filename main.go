@@ -14,6 +14,7 @@ func main() {
 	if err != nil {
 		log.Panic(err)
 	}
+	log.Println("Batches from the database are loaded and scheduled.")
 
 	routers.HandleRoutes(db)
 }

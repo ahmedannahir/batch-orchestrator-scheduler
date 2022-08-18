@@ -1,8 +1,10 @@
 package jobs
 
 import (
-	"fmt"
+	"errors"
 	"gestion-batches/entities"
+	"gestion-batches/entities/BatchStatus"
+	"gestion-batches/entities/ExecutionStatus"
 	"gestion-batches/handlers"
 	"log"
 	"os"
@@ -17,7 +19,7 @@ import (
 
 var scheduler = gocron.NewScheduler(time.UTC)
 
-func RunBatch(execution *entities.Execution, lastPrevBatchExec entities.Execution, batch entities.Batch, db *gorm.DB) error {
+func RunBatch(lastPrevBatchExec entities.Execution, batch entities.Batch, db *gorm.DB) error {
 	log.Println("creating log for batch : ", batch.Url)
 	logFile, _ := handlers.CreateLog(batch)
 	defer logFile.Close()
@@ -27,19 +29,22 @@ func RunBatch(execution *entities.Execution, lastPrevBatchExec entities.Executio
 
 	now := time.Now()
 
-	execution.Status = entities.RUNNING
-	execution.StartTime = &now
-	execution.LogFileUrl = logFile.Name()
-	tx := db.Begin()
+	logFileUrl := logFile.Name()
 
-	err := tx.Save(execution).Error
-	if err != nil {
-		tx.Rollback()
-		log.Println("An error occured during updating exec in db : ", err)
-		return err
+	execution := entities.Execution{
+		Status:     ExecutionStatus.RUNNING,
+		StartTime:  &now,
+		LogFileUrl: &logFileUrl,
+		BatchID:    &batch.ID,
 	}
 
-	tx.Commit()
+	batch.Status = BatchStatus.RUNNING
+
+	err := handlers.SaveExecutionAndBatchStatus(&execution, &batch, db)
+	if err != nil {
+		log.Println("Error saving execution and updating batch : ", err)
+		return err
+	}
 
 	script := filepath.Join(batch.Url, "script.sh")
 
@@ -47,95 +52,102 @@ func RunBatch(execution *entities.Execution, lastPrevBatchExec entities.Executio
 	cmdParts = append(cmdParts, "bash", script)
 
 	if batch.PrevBatchInput && batch.PreviousBatchID != nil {
-		cmdParts = append(cmdParts, lastPrevBatchExec.LogFileUrl)
+		cmdParts = append(cmdParts, *lastPrevBatchExec.LogFileUrl)
 	}
 
 	log.Println("Running batch : " + batch.Url + "...")
 	cmd := exec.Command(cmdParts[0], cmdParts[1:]...)
 	cmd.Stdout = logFile
 	cmd.Stderr = errLogFile
-	err1 := cmd.Run()
+	err2 := cmd.Run()
 
 	errLogPath := errLogFile.Name()
-	if err1 != nil {
+	if err2 != nil {
 		execution.ErrLogFileUrl = &errLogPath
 	} else {
 		errLogFile.Close()
 		err3 := os.Remove(errLogFile.Name())
 		if err3 != nil {
 			log.Println("Error removing Error Log File : ", err3)
+			return err3
 		}
 	}
 
-	err2 := handlers.UpdateExecution(execution, batch.Url, err1, db)
-	if err2 != nil {
-		return err2
+	err4 := handlers.UpdateExecutionAndBatchStatus(&execution, &batch, err2, db)
+	if err4 != nil {
+		return err4
 	}
 
-	return err1
+	return err2
 }
 
-func getPermissionToRun(batch entities.Batch, db *gorm.DB) (bool, entities.Execution) {
+func getPermissionToRun(batch entities.Batch, db *gorm.DB) (bool, entities.Execution, error) {
 	if batch.PreviousBatchID == nil {
 		log.Println("Permission to run : true | Independant : ", batch.Independant)
-		return true, entities.Execution{}
+		return true, entities.Execution{}, nil
 	} else {
 		var lastPrevBatchExec entities.Execution
-		db.Where("status IN ?", []string{string(entities.COMPLETED), string(entities.FAILED)}).Last(&lastPrevBatchExec, "batchId = ?", batch.PreviousBatchID)
+
+		err1 := db.Where("batchId = ? AND status IN ?", batch.PreviousBatchID, []string{string(ExecutionStatus.COMPLETED), string(ExecutionStatus.FAILED), string(ExecutionStatus.ABORTED)}).Last(&lastPrevBatchExec).Error
+		if err1 != nil {
+			if errors.Is(gorm.ErrRecordNotFound, err1) {
+				log.Println("Previous batch's execution not found !?")
+			}
+			return false, entities.Execution{}, err1
+		}
+
+		// comparing duration between execution can be as narrow as we want
 		now := time.Now()
-		permission := now.Sub(*lastPrevBatchExec.EndTime).Seconds() < 10 && (lastPrevBatchExec.Status == entities.COMPLETED || batch.Independant)
+		permission := now.Sub(*lastPrevBatchExec.EndTime).Seconds() < 1 && (lastPrevBatchExec.Status == ExecutionStatus.COMPLETED || batch.Independant)
 		log.Println("Permission to run : ", permission, " | Independant : ", batch.Independant, " | PrevBatchID : ", batch.PreviousBatchID, " | LastPrevBatchExec : ", lastPrevBatchExec)
-		return permission, lastPrevBatchExec
+		return permission, lastPrevBatchExec, nil
 	}
 
 }
 
-func batchJobFunc(execution *entities.Execution, batch entities.Batch, db *gorm.DB) {
-	permission, lastPrevBatchExec := getPermissionToRun(batch, db)
-	if permission {
-		RunBatch(execution, lastPrevBatchExec, batch, db)
-	} else {
-		log.Println("Previous batch threw an error. The batch :", batch, " did not run")
-	}
-}
-
-func twoConsecBatch(batches []entities.Batch, db *gorm.DB) error {
-	execution := entities.Execution{
-		Status:  entities.IDLE,
-		BatchID: &batches[0].ID,
-	}
-	err := handlers.SaveExecution(&execution, db)
+func batchJobFunc(batch entities.Batch, db *gorm.DB) error {
+	permission, lastPrevBatchExec, err := getPermissionToRun(batch, db)
 	if err != nil {
 		return err
 	}
+	if permission {
+		RunBatch(lastPrevBatchExec, batch, db)
+	} else {
+		now := time.Now()
+		execution := entities.Execution{
+			Status:    ExecutionStatus.ABORTED,
+			StartTime: &now,
+			EndTime:   &now,
+			BatchID:   &batch.ID,
+		}
 
+		err := db.Create(&execution).Error
+		if err != nil {
+			log.Println("Error creating ABORTED execution : ", err)
+			return err
+		}
+
+		log.Println("Previous batch threw an error. The batch :", batch, " is aborted.")
+		log.Println("Execution : ", execution, " saved to the database.")
+	}
+
+	return nil
+}
+
+func twoConsecBatch(batches []entities.Batch, db *gorm.DB) error {
 	job, err := scheduler.Cron(batches[0].Timing).Tag(strconv.FormatUint(uint64(batches[0].ID), 10)).Do(func() {
-		batchJobFunc(&execution, batches[0], db)
+		batchJobFunc(batches[0], db)
 	})
 
 	job.SetEventListeners(
-		func() {
-
-		},
+		nil,
 		func() {
 			err1 := scheduler.RunByTag(strconv.FormatUint(uint64(batches[1].ID), 10))
 			if err1 != nil {
 				log.Println("Error running subsequent batch ", batches[1].Url, " : ", err1)
 			}
-
-			// If Condition not mandatory but good guard nevertheless
-			if job.NextRun().After(time.Now()) {
-				execution = entities.Execution{
-					Status:  entities.IDLE,
-					BatchID: &batches[0].ID,
-				}
-				err := handlers.SaveExecution(&execution, db)
-				if err != nil {
-					fmt.Println("An ERROR happened while creating next execution", err)
-					return
-				}
-			}
-		})
+		},
+	)
 
 	if err == nil {
 		scheduler.StartAsync()
@@ -144,37 +156,9 @@ func twoConsecBatch(batches []entities.Batch, db *gorm.DB) error {
 }
 
 func ScheduleBatch(batch entities.Batch, db *gorm.DB) error {
-	execution := entities.Execution{
-		Status:  entities.IDLE,
-		BatchID: &batch.ID,
-	}
-	err := handlers.SaveExecution(&execution, db)
-	if err != nil {
-		return err
-	}
-
-	job, err := scheduler.Cron(batch.Timing).Tag(strconv.FormatUint(uint64(batch.ID), 10)).Do(func() {
-		batchJobFunc(&execution, batch, db)
+	_, err := scheduler.Cron(batch.Timing).Tag(strconv.FormatUint(uint64(batch.ID), 10)).Do(func() {
+		batchJobFunc(batch, db)
 	})
-
-	job.SetEventListeners(
-		nil,
-		func() {
-
-			// If Condition not mandatory but good guard nevertheless
-			if job.NextRun().After(time.Now()) {
-				execution = entities.Execution{
-					Status:  entities.IDLE,
-					BatchID: &batch.ID,
-				}
-				err := handlers.SaveExecution(&execution, db)
-				if err != nil {
-					fmt.Println("An ERROR happened while creating next execution", err)
-					return
-				}
-			}
-		})
-
 	if err == nil {
 		scheduler.StartAsync()
 	}
@@ -198,24 +182,11 @@ func ScheduleConsecBatches(batches []entities.Batch, db *gorm.DB) error {
 }
 
 func RunAfterBatch(id *uint, batch entities.Batch, db *gorm.DB) error {
-	execution := entities.Execution{
-		Status:  entities.IDLE,
-		BatchID: &batch.ID,
-	}
-	err := handlers.SaveExecution(&execution, db)
-	if err != nil {
-		return err
-	}
-
 	scheduler.Cron("1 1 30 2 1").Tag(strconv.FormatUint(uint64(batch.ID), 10)).Do(func() {
-		batchJobFunc(&execution, batch, db)
+		batchJobFunc(batch, db)
 	})
 
 	jobs, err := scheduler.FindJobsByTag(strconv.FormatUint(uint64(*id), 10))
-	if err != nil {
-		return err
-	}
-
 	jobs[0].SetEventListeners(
 		nil,
 		func() {
@@ -223,20 +194,12 @@ func RunAfterBatch(id *uint, batch entities.Batch, db *gorm.DB) error {
 			if err1 != nil {
 				log.Println("Error running subsequent batch ", batch.Url, " : ", err1)
 			}
+		},
+	)
 
-			// If Condition not mandatory but good guard nevertheless
-			if jobs[0].NextRun().After(time.Now()) {
-				execution = entities.Execution{
-					Status:  entities.IDLE,
-					BatchID: &batch.ID,
-				}
-				err := handlers.SaveExecution(&execution, db)
-				if err != nil {
-					fmt.Println("An ERROR happened while creating next execution", err)
-					return
-				}
-			}
-		})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
