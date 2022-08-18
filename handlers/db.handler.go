@@ -14,6 +14,8 @@ func SaveBatch(batch *entities.Batch, db *gorm.DB) error {
 	log.Println("Saving config and batch in the database...")
 	if batch.PreviousBatchID != nil {
 		batch.Timing = "1 1 30 2 1"
+	} else {
+		batch.Independant = true
 	}
 
 	tx := db.Begin()
@@ -81,8 +83,6 @@ func SaveExecutionAndBatchStatus(execution *entities.Execution, batch *entities.
 }
 
 func UpdateExecutionAndBatchStatus(execution *entities.Execution, batch *entities.Batch, err error, db *gorm.DB) error {
-	batch.Status = BatchStatus.IDLE
-
 	now := time.Now()
 	execution.EndTime = &now
 
@@ -96,17 +96,9 @@ func UpdateExecutionAndBatchStatus(execution *entities.Execution, batch *entitie
 		execution.ExitCode = err.Error()
 	}
 
-	log.Println("Batch update : ", *batch)
 	log.Println("Execution update : ", *execution)
 
 	tx := db.Begin()
-
-	err2 := tx.Save(batch).Error
-	if err2 != nil {
-		tx.Rollback()
-		log.Println("An error occured during updating batch status in db : ", err2)
-		return err2
-	}
 
 	err1 := tx.Save(execution).Error
 	if err1 != nil {
@@ -117,6 +109,27 @@ func UpdateExecutionAndBatchStatus(execution *entities.Execution, batch *entitie
 
 	tx.Commit()
 	log.Println("Batch execution endtime, status and exit code updated.")
+
+	tx2 := db.Begin()
+
+	var count int64
+	err2 := tx2.Model(&entities.Execution{}).Where("batchId = ? AND status = ?", batch.ID, ExecutionStatus.RUNNING).Count(&count).Error
+	if err2 != nil {
+		log.Println("Error retrieving number of current executions running for the batch : ", err2)
+		return err2
+	}
+
+	if count == 0 {
+		batch.Status = BatchStatus.IDLE
+		err3 := tx2.Save(batch).Error
+		if err3 != nil {
+			tx2.Rollback()
+			log.Println("An error occured during updating batch status in db : ", err3)
+			return err3
+		}
+	}
+
+	tx2.Commit()
 
 	return nil
 }
