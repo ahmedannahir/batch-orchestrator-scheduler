@@ -119,7 +119,7 @@ func UpdateExecutionAndBatchStatus(execution *entities.Execution, batch *entitie
 		log.Println("Error retrieving number of current executions running for the batch : ", err2)
 		return err2
 	}
-	log.Println("Count : ", count)
+	log.Println("Number of current execution of this batch : ", count)
 	if count == 0 {
 		batch.Status = BatchStatus.IDLE
 		err3 := tx2.Save(batch).Error

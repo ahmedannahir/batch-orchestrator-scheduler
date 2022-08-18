@@ -77,6 +77,12 @@ func MatchBatchAndConfig(configs []models.Config, batchPaths *[]string) {
 func SaveBatch(config models.Config, batchPath string, prevBatchId *uint, db *gorm.DB, c *gin.Context) (entities.Batch, error) {
 	batchName := c.PostForm("batchName")
 	batchDesc := c.PostForm("batchDesc")
+	profileIdStr := c.PostForm("profileId")
+	profileId64, err := strconv.ParseUint(profileIdStr, 10, 64)
+	if err != nil {
+		return entities.Batch{}, err
+	}
+	profileId := uint(profileId64)
 
 	batch := entities.Batch{
 		Name:            batchName,
@@ -87,11 +93,12 @@ func SaveBatch(config models.Config, batchPath string, prevBatchId *uint, db *go
 		Independant:     config.Independant,
 		PrevBatchInput:  config.PrevBatchInput,
 		PreviousBatchID: prevBatchId,
+		ProfileID:       &profileId,
 	}
 
-	err := handlers.SaveBatch(&batch, db)
-	if err != nil {
-		return entities.Batch{}, err
+	err1 := handlers.SaveBatch(&batch, db)
+	if err1 != nil {
+		return entities.Batch{}, err1
 	}
 
 	return batch, nil
@@ -102,6 +109,12 @@ func SaveConsecBatches(configs []models.Config, batchesPaths []string, db *gorm.
 
 	batchName := c.PostForm("batchName")
 	batchDesc := c.PostForm("batchDesc")
+	profileIdStr := c.PostForm("profileId")
+	profileId64, err := strconv.ParseUint(profileIdStr, 10, 64)
+	if err != nil {
+		return []entities.Batch{}, err
+	}
+	profileId := uint(profileId64)
 
 	for i := 0; i < len(configs); i++ {
 		batch := entities.Batch{
@@ -112,14 +125,15 @@ func SaveConsecBatches(configs []models.Config, batchesPaths []string, db *gorm.
 			Status:         BatchStatus.IDLE,
 			Independant:    configs[i].Independant,
 			PrevBatchInput: configs[i].PrevBatchInput,
+			ProfileID:      &profileId,
 		}
 
 		batches = append(batches, batch)
 	}
 
-	err := handlers.SaveConsecBatches(&batches, batchesPaths, db)
+	err1 := handlers.SaveConsecBatches(&batches, batchesPaths, db)
 	if err != nil {
-		return nil, err
+		return nil, err1
 	}
 
 	return batches, nil

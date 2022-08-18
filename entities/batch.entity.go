@@ -14,6 +14,7 @@ type Batch struct {
 	PrevBatchInput  bool  `gorm:"column:prevBatchInput"`
 	PreviousBatchID *uint `gorm:"unique;column:previousBatchId"`
 	PreviousBatch   *Batch
+	ProfileID       *uint       `gorm:"column:profileId;not null"`
 	Executions      []Execution `gorm:"foreignKey:BatchID"`
 }
 
