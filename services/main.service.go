@@ -89,6 +89,7 @@ func SaveBatch(config models.Config, batchPath string, prevBatchId *uint, db *go
 		Description:     batchDesc,
 		Url:             batchPath,
 		Timing:          config.Cron,
+		Active:          true,
 		Status:          BatchStatus.IDLE,
 		Independant:     config.Independant,
 		PrevBatchInput:  config.PrevBatchInput,
@@ -122,6 +123,7 @@ func SaveConsecBatches(configs []models.Config, batchesPaths []string, db *gorm.
 			Description:    batchDesc,
 			Url:            batchesPaths[i],
 			Timing:         configs[i].Cron,
+			Active:         true,
 			Status:         BatchStatus.IDLE,
 			Independant:    configs[i].Independant,
 			PrevBatchInput: configs[i].PrevBatchInput,
@@ -205,6 +207,9 @@ func LoadBatchesFromDB(db *gorm.DB) error {
 
 	for _, batch := range batches {
 		var err error
+		if !batch.Active {
+			continue
+		}
 
 		if batch.PreviousBatchID == nil {
 			err = jobs.ScheduleBatch(batch, db)
@@ -222,4 +227,64 @@ func LoadBatchesFromDB(db *gorm.DB) error {
 
 func RunBatchById(batch entities.Batch, db *gorm.DB) error {
 	return jobs.RunBatch(entities.Execution{}, batch, db)
+}
+
+func DisableBatch(batch entities.Batch, db *gorm.DB) error {
+	if batch.Active == false {
+		log.Println("Batch already inactive")
+		return nil
+	}
+
+	batch.Active = false
+
+	tx := db.Begin()
+
+	err := tx.Save(&batch).Error
+	if err != nil {
+		log.Println("Rolling back. Error updating Batch active field : ", err)
+		tx.Rollback()
+		return err
+	}
+	log.Println("Batch active field updated : ", batch.Active)
+
+	err = jobs.DisableBatch(batch, db)
+	if err != nil {
+		log.Println("Rolling back. Error removing batch from the scheduler : ", err)
+		tx.Rollback()
+	}
+	log.Println("Job removed from the scheduler.")
+
+	tx.Commit()
+
+	return nil
+}
+
+func EnableBatch(batch entities.Batch, db *gorm.DB) error {
+	if batch.Active == true {
+		log.Println("Batch already active")
+		return nil
+	}
+
+	batch.Active = true
+
+	tx := db.Begin()
+
+	err := tx.Save(&batch).Error
+	if err != nil {
+		log.Println("Error updating Batch active field : ", err)
+		tx.Rollback()
+		return err
+	}
+	log.Println("Batch active field updated : ", batch.Active)
+
+	err = jobs.ScheduleBatch(batch, db)
+	if err != nil {
+		log.Println("Error adding batch to the scheduler : ", err)
+		tx.Rollback()
+	}
+	log.Println("Job added to the scheduler.")
+
+	tx.Commit()
+
+	return nil
 }

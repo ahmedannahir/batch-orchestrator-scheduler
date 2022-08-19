@@ -203,3 +203,7 @@ func RunAfterBatch(id *uint, batch entities.Batch, db *gorm.DB) error {
 
 	return nil
 }
+
+func DisableBatch(batch entities.Batch, db *gorm.DB) error {
+	return scheduler.RemoveByTag(strconv.FormatUint(uint64(batch.ID), 10))
+}

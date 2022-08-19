@@ -185,3 +185,45 @@ func RunBatch(db *gorm.DB) gin.HandlerFunc {
 		}
 	}
 }
+
+func DisableBatch(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		_, batch, err := services.ProcessBatchIdFromParam("id", db, c)
+		if err != nil {
+			log.Println(err)
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Batch not found"})
+			} else {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err})
+			}
+			return
+		}
+
+		err = services.DisableBatch(batch, db)
+		if err != nil {
+			log.Println(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		}
+	}
+}
+
+func EnableBatch(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		_, batch, err := services.ProcessBatchIdFromParam("id", db, c)
+		if err != nil {
+			log.Println(err)
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Batch not found"})
+			} else {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err})
+			}
+			return
+		}
+
+		err = services.EnableBatch(batch, db)
+		if err != nil {
+			log.Println(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		}
+	}
+}
