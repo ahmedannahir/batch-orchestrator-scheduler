@@ -59,26 +59,26 @@ func RunBatch(lastPrevBatchExec entities.Execution, batch entities.Batch, db *go
 	cmd := exec.Command(cmdParts[0], cmdParts[1:]...)
 	cmd.Stdout = logFile
 	cmd.Stderr = errLogFile
-	err2 := cmd.Run()
+	errExec := cmd.Run()
 
 	errLogPath := errLogFile.Name()
-	if err2 != nil {
+	if errExec != nil {
 		execution.ErrLogFileUrl = &errLogPath
 	} else {
 		errLogFile.Close()
-		err3 := os.Remove(errLogFile.Name())
-		if err3 != nil {
-			log.Println("Error removing Error Log File : ", err3)
-			return err3
+		err := os.Remove(errLogFile.Name())
+		if err != nil {
+			log.Println("Error removing Error Log File : ", err)
+			return err
 		}
 	}
 
-	err4 := handlers.UpdateExecutionAndBatchStatus(&execution, &batch, err2, db)
+	err4 := handlers.UpdateExecutionAndBatchStatus(&execution, &batch, errExec, db)
 	if err4 != nil {
 		return err4
 	}
 
-	return err2
+	return nil
 }
 
 func getPermissionToRun(batch entities.Batch, db *gorm.DB) (bool, entities.Execution, error) {
@@ -88,12 +88,12 @@ func getPermissionToRun(batch entities.Batch, db *gorm.DB) (bool, entities.Execu
 	} else {
 		var lastPrevBatchExec entities.Execution
 
-		err1 := db.Where("batchId = ? AND status IN ?", batch.PreviousBatchID, []string{string(ExecutionStatus.COMPLETED), string(ExecutionStatus.FAILED), string(ExecutionStatus.ABORTED)}).Last(&lastPrevBatchExec).Error
-		if err1 != nil {
-			if errors.Is(gorm.ErrRecordNotFound, err1) {
+		err := db.Where("batchId = ? AND status IN ?", batch.PreviousBatchID, []string{string(ExecutionStatus.COMPLETED), string(ExecutionStatus.FAILED), string(ExecutionStatus.ABORTED)}).Last(&lastPrevBatchExec).Error
+		if err != nil {
+			if errors.Is(gorm.ErrRecordNotFound, err) {
 				log.Println("Previous batch's execution not found !?")
 			}
-			return false, entities.Execution{}, err1
+			return false, entities.Execution{}, err
 		}
 
 		// comparing duration between execution can be as narrow as we want

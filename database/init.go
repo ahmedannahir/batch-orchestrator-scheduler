@@ -14,8 +14,8 @@ import (
 func Init() *gorm.DB {
 	var db *gorm.DB
 
-	err1 := godotenv.Load()
-	if err1 != nil {
+	err := godotenv.Load()
+	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
 
@@ -28,10 +28,9 @@ func Init() *gorm.DB {
 		os.Getenv("DB_NAME"),
 	)
 
-	var err2 error
-	db, err2 = gorm.Open(mysql.Open(dsn), &gorm.Config{})
-	if err2 != nil {
-		log.Fatal(err2)
+	db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	db.AutoMigrate(&entities.User{}, &entities.Profile{}, &entities.Batch{}, &entities.Execution{})

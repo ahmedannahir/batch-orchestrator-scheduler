@@ -19,14 +19,14 @@ import (
 )
 
 func ExtractFile(key string, c *gin.Context) ([]byte, error) {
-	fileHeader, err1 := c.FormFile(key)
-	if err1 != nil {
-		return nil, err1
+	fileHeader, err := c.FormFile(key)
+	if err != nil {
+		return nil, err
 	}
 
-	file, err2 := fileHeader.Open()
-	if err2 != nil {
-		return nil, err1
+	file, err := fileHeader.Open()
+	if err != nil {
+		return nil, err
 	}
 
 	return ioutil.ReadAll(file)
@@ -97,9 +97,9 @@ func SaveBatch(config models.Config, batchPath string, prevBatchId *uint, db *go
 		ProfileID:       &profileId,
 	}
 
-	err1 := handlers.SaveBatch(&batch, db)
-	if err1 != nil {
-		return entities.Batch{}, err1
+	err = handlers.SaveBatch(&batch, db)
+	if err != nil {
+		return entities.Batch{}, err
 	}
 
 	return batch, nil
@@ -133,9 +133,9 @@ func SaveConsecBatches(configs []models.Config, batchesPaths []string, db *gorm.
 		batches = append(batches, batch)
 	}
 
-	err1 := handlers.SaveConsecBatches(&batches, batchesPaths, db)
+	err = handlers.SaveConsecBatches(&batches, batchesPaths, db)
 	if err != nil {
-		return nil, err1
+		return nil, err
 	}
 
 	return batches, nil
@@ -163,9 +163,9 @@ func ProcessBatchIdFromParam(key string, db *gorm.DB, c *gin.Context) (*uint, en
 	batchId := uint(batchId64)
 	var batch entities.Batch
 
-	err1 := db.First(&batch, batchId).Error
-	if err1 != nil {
-		return nil, entities.Batch{}, err1
+	err = db.First(&batch, batchId).Error
+	if err != nil {
+		return nil, entities.Batch{}, err
 	}
 
 	return &batchId, batch, nil
@@ -180,9 +180,9 @@ func ProcessExecIdFromParam(key string, db *gorm.DB, c *gin.Context) (*uint, ent
 	execId := uint(execId64)
 	var execution entities.Execution
 
-	err1 := db.First(&execution, execId).Error
-	if err1 != nil {
-		return nil, entities.Execution{}, err1
+	err = db.First(&execution, execId).Error
+	if err != nil {
+		return nil, entities.Execution{}, err
 	}
 
 	return &execId, execution, nil

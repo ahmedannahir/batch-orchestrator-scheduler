@@ -20,11 +20,11 @@ func SaveBatch(batch *entities.Batch, db *gorm.DB) error {
 
 	tx := db.Begin()
 
-	err2 := tx.Create(batch).Error
-	if err2 != nil {
+	err := tx.Create(batch).Error
+	if err != nil {
 		tx.Rollback()
-		log.Println("An error has occured. Config and batch not saved to db : ", err2)
-		return err2
+		log.Println("An error has occured. Config and batch not saved to db : ", err)
+		return err
 	}
 
 	tx.Commit()
@@ -37,21 +37,21 @@ func SaveConsecBatches(batches *[]entities.Batch, batchesPaths []string, db *gor
 	log.Println("Saving config and the batches in the database...")
 	tx := db.Begin()
 
-	err2 := tx.Create(batches).Error
-	if err2 != nil {
-		log.Println("An error has occured. Config and batches not saved to db : ", err2)
+	err := tx.Create(batches).Error
+	if err != nil {
+		log.Println("An error has occured. Config and batches not saved to db : ", err)
 		tx.Rollback()
-		return err2
+		return err
 	}
 	for i := 1; i < len(*batches); i++ {
 		(*batches)[i].PreviousBatchID = &(*batches)[i-1].ID
 	}
 
-	err3 := tx.Save(&batches).Error
-	if err3 != nil {
-		log.Println("An error has occured. Config and batches not saved to db : ", err3)
+	err = tx.Save(&batches).Error
+	if err != nil {
+		log.Println("An error has occured. Config and batches not saved to db : ", err)
 		tx.Rollback()
-		return err3
+		return err
 	}
 
 	tx.Commit()
@@ -114,10 +114,10 @@ func UpdateExecutionAndBatchStatus(execution *entities.Execution, batch *entitie
 	tx2 := db.Begin()
 
 	var count int64
-	err2 := tx2.Model(&entities.Execution{}).Where("batchId = ? AND status = ?", batch.ID, ExecutionStatus.RUNNING).Count(&count).Error
-	if err2 != nil {
-		log.Println("Error retrieving number of current executions running for the batch : ", err2)
-		return err2
+	err1 = tx2.Model(&entities.Execution{}).Where("batchId = ? AND status = ?", batch.ID, ExecutionStatus.RUNNING).Count(&count).Error
+	if err1 != nil {
+		log.Println("Error retrieving number of current executions running for the batch : ", err1)
+		return err1
 	}
 	log.Println("Number of current execution of this batch : ", count)
 	if count == 0 {
