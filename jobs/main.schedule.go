@@ -204,6 +204,15 @@ func RunAfterBatch(id *uint, batch entities.Batch, db *gorm.DB) error {
 	return nil
 }
 
-func DisableBatch(batch entities.Batch, db *gorm.DB) error {
-	return scheduler.RemoveByTag(strconv.FormatUint(uint64(batch.ID), 10))
+func RemoveBatches(batches []entities.Batch, db *gorm.DB) error {
+	for _, batch := range batches {
+		err := scheduler.RemoveByTag(strconv.FormatUint(uint64(batch.ID), 10))
+		if err != nil {
+			log.Println("Error removing batch from scheduler : ", batch.Url)
+			return err
+		}
+		log.Println("Removed from the scheduler the batch : ", batch.Url)
+	}
+
+	return nil
 }

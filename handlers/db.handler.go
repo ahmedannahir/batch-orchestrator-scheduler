@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"gestion-batches/entities"
 	"gestion-batches/entities/BatchStatus"
 	"gestion-batches/entities/ExecutionStatus"
@@ -134,4 +135,30 @@ func UpdateExecutionAndBatchStatus(execution *entities.Execution, batch *entitie
 	log.Println("Batch status update : ", (*batch).Status)
 	log.Println("Execution update : ", *execution)
 	return nil
+}
+
+func GetSubsequentBatches(batch entities.Batch, db *gorm.DB) ([]entities.Batch, error) {
+	var batches []entities.Batch
+	currentBatch := batch
+
+	for {
+		var subsequentBatch entities.Batch
+
+		err := db.Where("previousBatchId = ?", currentBatch.ID).First(&subsequentBatch).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				break
+			} else {
+				log.Println("Error retrieving subsequent batch for : ", currentBatch.Url)
+				return nil, err
+			}
+		}
+
+		subsequentBatch.Active = false
+		batches = append(batches, subsequentBatch)
+
+		currentBatch = subsequentBatch
+	}
+
+	return batches, nil
 }
