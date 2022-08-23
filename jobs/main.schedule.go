@@ -59,26 +59,26 @@ func RunBatch(lastPrevBatchExec entities.Execution, batch entities.Batch, db *go
 	cmd := exec.Command(cmdParts[0], cmdParts[1:]...)
 	cmd.Stdout = logFile
 	cmd.Stderr = errLogFile
-	err2 := cmd.Run()
+	errExec := cmd.Run()
 
 	errLogPath := errLogFile.Name()
-	if err2 != nil {
+	if errExec != nil {
 		execution.ErrLogFileUrl = &errLogPath
 	} else {
 		errLogFile.Close()
-		err3 := os.Remove(errLogFile.Name())
-		if err3 != nil {
-			log.Println("Error removing Error Log File : ", err3)
-			return err3
+		err := os.Remove(errLogFile.Name())
+		if err != nil {
+			log.Println("Error removing Error Log File : ", err)
+			return err
 		}
 	}
 
-	err4 := handlers.UpdateExecutionAndBatchStatus(&execution, &batch, err2, db)
+	err4 := handlers.UpdateExecutionAndBatchStatus(&execution, &batch, errExec, db)
 	if err4 != nil {
 		return err4
 	}
 
-	return err2
+	return nil
 }
 
 func getPermissionToRun(batch entities.Batch, db *gorm.DB) (bool, entities.Execution, error) {
@@ -88,12 +88,12 @@ func getPermissionToRun(batch entities.Batch, db *gorm.DB) (bool, entities.Execu
 	} else {
 		var lastPrevBatchExec entities.Execution
 
-		err1 := db.Where("batchId = ? AND status IN ?", batch.PreviousBatchID, []string{string(ExecutionStatus.COMPLETED), string(ExecutionStatus.FAILED), string(ExecutionStatus.ABORTED)}).Last(&lastPrevBatchExec).Error
-		if err1 != nil {
-			if errors.Is(gorm.ErrRecordNotFound, err1) {
+		err := db.Where("batchId = ? AND status IN ?", batch.PreviousBatchID, []string{string(ExecutionStatus.COMPLETED), string(ExecutionStatus.FAILED), string(ExecutionStatus.ABORTED)}).Last(&lastPrevBatchExec).Error
+		if err != nil {
+			if errors.Is(gorm.ErrRecordNotFound, err) {
 				log.Println("Previous batch's execution not found !?")
 			}
-			return false, entities.Execution{}, err1
+			return false, entities.Execution{}, err
 		}
 
 		// comparing duration between execution can be as narrow as we want
@@ -110,6 +110,7 @@ func batchJobFunc(batch entities.Batch, db *gorm.DB) error {
 	if err != nil {
 		return err
 	}
+
 	if permission {
 		RunBatch(lastPrevBatchExec, batch, db)
 	} else {
@@ -138,21 +139,21 @@ func twoConsecBatch(batches []entities.Batch, db *gorm.DB) error {
 	job, err := scheduler.Cron(batches[0].Timing).Tag(strconv.FormatUint(uint64(batches[0].ID), 10)).Do(func() {
 		batchJobFunc(batches[0], db)
 	})
+	if err != nil {
+		return err
+	}
 
 	job.SetEventListeners(
 		nil,
 		func() {
-			err1 := scheduler.RunByTag(strconv.FormatUint(uint64(batches[1].ID), 10))
-			if err1 != nil {
-				log.Println("Error running subsequent batch ", batches[1].Url, " : ", err1)
+			err := scheduler.RunByTag(strconv.FormatUint(uint64(batches[1].ID), 10))
+			if err != nil {
+				log.Println("Error running subsequent batch ", batches[1].Url, " : ", err)
 			}
 		},
 	)
 
-	if err == nil {
-		scheduler.StartAsync()
-	}
-	return err
+	return nil
 }
 
 func ScheduleBatch(batch entities.Batch, db *gorm.DB) error {
@@ -187,18 +188,92 @@ func RunAfterBatch(id *uint, batch entities.Batch, db *gorm.DB) error {
 	})
 
 	jobs, err := scheduler.FindJobsByTag(strconv.FormatUint(uint64(*id), 10))
+	if err != nil {
+		return err
+	}
+
 	jobs[0].SetEventListeners(
 		nil,
 		func() {
-			err1 := scheduler.RunByTag(strconv.FormatUint(uint64(batch.ID), 10))
-			if err1 != nil {
-				log.Println("Error running subsequent batch ", batch.Url, " : ", err1)
+			err := scheduler.RunByTag(strconv.FormatUint(uint64(batch.ID), 10))
+			if err != nil {
+				log.Println("Error running subsequent batch ", batch.Url, " : ", err)
 			}
 		},
 	)
 
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func RemoveBatches(batches []entities.Batch, db *gorm.DB) error {
+	for _, batch := range batches {
+		err := scheduler.RemoveByTag(strconv.FormatUint(uint64(batch.ID), 10))
+		if err != nil {
+			log.Println("Error removing batch from scheduler : ", batch.Url)
+			return err
+		}
+		log.Println("Removed from the scheduler the batch : ", batch.Url)
+	}
+
+	return nil
+}
+
+func EnableBatch(batch entities.Batch, tx *gorm.DB) error {
+	err := ScheduleBatch(batch, tx)
+	if err != nil {
+		return err
+	}
+
+	var subseqBatch entities.Batch
+	err = tx.Where("previousBatchId = ?", batch.ID).First(&subseqBatch).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	if !errors.Is(err, gorm.ErrRecordNotFound) && subseqBatch.Active {
+		subseqJobs, err := scheduler.FindJobsByTag(strconv.FormatUint(uint64(batch.ID), 10))
+		if err != nil {
+			return err
+		}
+
+		subseqJobs[0].SetEventListeners(
+			nil,
+			func() {
+				err := scheduler.RunByTag(strconv.FormatUint(uint64(subseqBatch.ID), 10))
+				if err != nil {
+					log.Println("Error running subsequent batch ", subseqBatch.Url, " : ", err)
+				}
+			},
+		)
+	}
+
+	if batch.PreviousBatchID != nil {
+		var prevBatch entities.Batch
+		err := tx.First(&prevBatch, batch.PreviousBatchID).Error
+		if err != nil {
+			return err
+		}
+
+		if prevBatch.Active {
+			prevJobs, err := scheduler.FindJobsByTag(strconv.FormatUint(uint64(prevBatch.ID), 10))
+			if err != nil {
+				return err
+			}
+
+			prevJobs[0].SetEventListeners(
+				nil,
+				func() {
+					err := scheduler.RunByTag(strconv.FormatUint(uint64(batch.ID), 10))
+					if err != nil {
+						log.Println("Error running subsequent batch ", batch.Url, " : ", err)
+					}
+				},
+			)
+		}
 	}
 
 	return nil

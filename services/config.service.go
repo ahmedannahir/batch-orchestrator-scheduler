@@ -27,12 +27,12 @@ func GetConsecConfig(key string, c *gin.Context) ([]models.Config, error) {
 	}
 
 	log.Println("Parsing config file...")
-	configs, err1 := ParseConsecConfig(configBytes)
+	configs, err := ParseConsecConfig(configBytes)
 	for i := 1; i < len(configs); i++ {
-		configs[i].Cron = "1 1 30 2 1" // temp workaround, cron for feb 30th i.e. never, for batches following scheduled batches
+		configs[i].Cron = "1 1 30 2 1"
 	}
 
-	return configs, err1
+	return configs, err
 }
 
 func ParseConfig(configBytes []byte) (models.Config, error) {

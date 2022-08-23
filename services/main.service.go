@@ -19,14 +19,14 @@ import (
 )
 
 func ExtractFile(key string, c *gin.Context) ([]byte, error) {
-	fileHeader, err1 := c.FormFile(key)
-	if err1 != nil {
-		return nil, err1
+	fileHeader, err := c.FormFile(key)
+	if err != nil {
+		return nil, err
 	}
 
-	file, err2 := fileHeader.Open()
-	if err2 != nil {
-		return nil, err1
+	file, err := fileHeader.Open()
+	if err != nil {
+		return nil, err
 	}
 
 	return ioutil.ReadAll(file)
@@ -89,6 +89,7 @@ func SaveBatch(config models.Config, batchPath string, prevBatchId *uint, db *go
 		Description:     batchDesc,
 		Url:             batchPath,
 		Timing:          config.Cron,
+		Active:          true,
 		Status:          BatchStatus.IDLE,
 		Independant:     config.Independant,
 		PrevBatchInput:  config.PrevBatchInput,
@@ -96,9 +97,9 @@ func SaveBatch(config models.Config, batchPath string, prevBatchId *uint, db *go
 		ProfileID:       &profileId,
 	}
 
-	err1 := handlers.SaveBatch(&batch, db)
-	if err1 != nil {
-		return entities.Batch{}, err1
+	err = handlers.SaveBatch(&batch, db)
+	if err != nil {
+		return entities.Batch{}, err
 	}
 
 	return batch, nil
@@ -122,6 +123,7 @@ func SaveConsecBatches(configs []models.Config, batchesPaths []string, db *gorm.
 			Description:    batchDesc,
 			Url:            batchesPaths[i],
 			Timing:         configs[i].Cron,
+			Active:         true,
 			Status:         BatchStatus.IDLE,
 			Independant:    configs[i].Independant,
 			PrevBatchInput: configs[i].PrevBatchInput,
@@ -131,9 +133,9 @@ func SaveConsecBatches(configs []models.Config, batchesPaths []string, db *gorm.
 		batches = append(batches, batch)
 	}
 
-	err1 := handlers.SaveConsecBatches(&batches, batchesPaths, db)
+	err = handlers.SaveConsecBatches(&batches, batchesPaths, db)
 	if err != nil {
-		return nil, err1
+		return nil, err
 	}
 
 	return batches, nil
@@ -161,9 +163,9 @@ func ProcessBatchIdFromParam(key string, db *gorm.DB, c *gin.Context) (*uint, en
 	batchId := uint(batchId64)
 	var batch entities.Batch
 
-	err1 := db.First(&batch, batchId).Error
-	if err1 != nil {
-		return nil, entities.Batch{}, err1
+	err = db.First(&batch, batchId).Error
+	if err != nil {
+		return nil, entities.Batch{}, err
 	}
 
 	return &batchId, batch, nil
@@ -178,9 +180,9 @@ func ProcessExecIdFromParam(key string, db *gorm.DB, c *gin.Context) (*uint, ent
 	execId := uint(execId64)
 	var execution entities.Execution
 
-	err1 := db.First(&execution, execId).Error
-	if err1 != nil {
-		return nil, entities.Execution{}, err1
+	err = db.First(&execution, execId).Error
+	if err != nil {
+		return nil, entities.Execution{}, err
 	}
 
 	return &execId, execution, nil
@@ -204,16 +206,24 @@ func LoadBatchesFromDB(db *gorm.DB) error {
 	}
 
 	for _, batch := range batches {
-		var err error
+		if !batch.Active {
+			log.Println("Batch : ", batch.Url, "inactive, thus not scheduled.")
+			continue
+		}
 
 		if batch.PreviousBatchID == nil {
 			err = jobs.ScheduleBatch(batch, db)
+			if err == nil {
+				log.Println("Scheduled batch : ", batch.Url)
+			}
 		} else {
 			err = jobs.RunAfterBatch(batch.PreviousBatchID, batch, db)
+			if err == nil {
+				log.Println("Scheduled batch : ", batch.Url, " to run after batch ID : ", *batch.PreviousBatchID)
+			}
 		}
-
 		if err != nil {
-			return err
+			log.Print("Error scheduling batch : ", batch.Url)
 		}
 	}
 
@@ -222,4 +232,79 @@ func LoadBatchesFromDB(db *gorm.DB) error {
 
 func RunBatchById(batch entities.Batch, db *gorm.DB) error {
 	return jobs.RunBatch(entities.Execution{}, batch, db)
+}
+
+func DisableBatch(batch entities.Batch, db *gorm.DB) error {
+	if batch.Active == false {
+		log.Println("Batch already inactive")
+		return nil
+	}
+
+	batch.Active = false
+
+	var batches []entities.Batch
+
+	tx := db.Begin()
+
+	subseqBatches, err := handlers.GetSubsequentBatches(batch, tx)
+	if err != nil {
+		return err
+	}
+
+	batches = append(batches, batch)
+	batches = append(batches, subseqBatches...)
+
+	for _, batch := range batches {
+		batch.Active = false
+	}
+	err = tx.Save(&batches).Error
+	if err != nil {
+		log.Println("Error updating batches : ", err)
+		tx.Rollback()
+		return err
+	}
+
+	err = jobs.RemoveBatches(batches, db)
+	if err != nil {
+		log.Println("Error removing jobs from the scheduler : ", err)
+		tx.Rollback()
+		return err
+	}
+
+	log.Println("Jobs removed from the scheduler.")
+
+	tx.Commit()
+
+	return nil
+}
+
+func EnableBatch(batch entities.Batch, db *gorm.DB) error {
+	if batch.Active == true {
+		log.Println("Batch already active")
+		return nil
+	}
+
+	batch.Active = true
+
+	tx := db.Begin()
+
+	err := tx.Save(&batch).Error
+	if err != nil {
+		log.Println("Error updating Batch active field : ", err)
+		tx.Rollback()
+		return err
+	}
+	log.Println("Batch active field updated : ", batch.Active)
+
+	err = jobs.EnableBatch(batch, tx)
+	if err != nil {
+		log.Println("Error adding batch to the scheduler : ", err)
+		tx.Rollback()
+		return err
+	}
+	log.Println("Job added to the scheduler.")
+
+	tx.Commit()
+
+	return nil
 }
