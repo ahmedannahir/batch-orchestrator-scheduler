@@ -73,9 +73,40 @@ func RunBatch(lastPrevBatchExec entities.Execution, batch entities.Batch, db *go
 		}
 	}
 
-	err4 := handlers.UpdateExecutionAndBatchStatus(&execution, &batch, errExec, db)
-	if err4 != nil {
-		return err4
+	err = handlers.UpdateExecutionAndBatchStatus(&execution, &batch, errExec, db)
+	if err != nil {
+		return err
+	}
+
+	err = handlers.SendExecInfosMail(batch, execution, db)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func abortBatch(batch entities.Batch, db *gorm.DB) error {
+	now := time.Now()
+	execution := entities.Execution{
+		Status:    ExecutionStatus.ABORTED,
+		StartTime: &now,
+		EndTime:   &now,
+		BatchID:   &batch.ID,
+	}
+
+	err := db.Create(&execution).Error
+	if err != nil {
+		log.Println("Error creating ABORTED execution : ", err)
+		return err
+	}
+
+	log.Println("Previous batch threw an error. The batch :", batch, " is aborted.")
+	log.Println("Execution : ", execution, " saved to the database.")
+
+	err = handlers.SendExecInfosMail(batch, execution, db)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -114,22 +145,7 @@ func batchJobFunc(batch entities.Batch, db *gorm.DB) error {
 	if permission {
 		RunBatch(lastPrevBatchExec, batch, db)
 	} else {
-		now := time.Now()
-		execution := entities.Execution{
-			Status:    ExecutionStatus.ABORTED,
-			StartTime: &now,
-			EndTime:   &now,
-			BatchID:   &batch.ID,
-		}
-
-		err := db.Create(&execution).Error
-		if err != nil {
-			log.Println("Error creating ABORTED execution : ", err)
-			return err
-		}
-
-		log.Println("Previous batch threw an error. The batch :", batch, " is aborted.")
-		log.Println("Execution : ", execution, " saved to the database.")
+		abortBatch(batch, db)
 	}
 
 	return nil
