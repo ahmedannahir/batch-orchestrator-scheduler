@@ -154,7 +154,6 @@ func GetSubsequentBatches(batch entities.Batch, db *gorm.DB) ([]entities.Batch, 
 			}
 		}
 
-		subsequentBatch.Active = false
 		batches = append(batches, subsequentBatch)
 
 		currentBatch = subsequentBatch
