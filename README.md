@@ -13,7 +13,7 @@ The following are functionalities we have yet to implement: Monitor a batch's ex
 2. Create a .env file in the root folder following the .env.example file structure.
 3. Make sure all the dependencies are installed by using the following command on the root folder :
 ```
-go get
+go mod download
 ```
 4. To run batches, the program runs the command :
 ```
