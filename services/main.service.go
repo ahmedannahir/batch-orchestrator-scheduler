@@ -207,23 +207,23 @@ func LoadBatchesFromDB(db *gorm.DB) error {
 
 	for _, batch := range batches {
 		if !batch.Active {
-			log.Println("Batch : ", batch.Url, "inactive, thus not scheduled.")
+			log.Println("Batch ID ", batch.ID, " : ", batch.Url, "inactive, thus not scheduled.")
 			continue
 		}
 
 		if batch.PreviousBatchID == nil {
 			err = jobs.ScheduleBatch(batch, db)
 			if err == nil {
-				log.Println("Scheduled batch : ", batch.Url)
+				log.Println("Scheduled batch ID ", batch.ID, " : ", batch.Url)
 			}
 		} else {
 			err = jobs.RunAfterBatch(batch.PreviousBatchID, batch, db)
 			if err == nil {
-				log.Println("Scheduled batch : ", batch.Url, " to run after batch ID : ", *batch.PreviousBatchID)
+				log.Println("Scheduled batch ID ", batch.ID, " : ", batch.Url, " to run after batch ID : ", *batch.PreviousBatchID)
 			}
 		}
 		if err != nil {
-			log.Print("Error scheduling batch : ", batch.Url)
+			log.Print("Error scheduling batch ID ", batch.ID, " : ", batch.Url)
 		}
 	}
 
@@ -235,12 +235,10 @@ func RunBatchById(batch entities.Batch, db *gorm.DB) error {
 }
 
 func DisableBatch(batch entities.Batch, db *gorm.DB) error {
-	if batch.Active == false {
+	if !batch.Active {
 		log.Println("Batch already inactive")
 		return nil
 	}
-
-	batch.Active = false
 
 	var batches []entities.Batch
 
@@ -254,9 +252,17 @@ func DisableBatch(batch entities.Batch, db *gorm.DB) error {
 	batches = append(batches, batch)
 	batches = append(batches, subseqBatches...)
 
-	for _, batch := range batches {
-		batch.Active = false
+	err = jobs.RemoveBatches(batches, tx)
+	if err != nil {
+		log.Println("Error removing jobs from the scheduler : ", err)
+		tx.Rollback()
+		return err
 	}
+
+	for i := 0; i < len(batches); i++ {
+		batches[i].Active = false
+	}
+
 	err = tx.Save(&batches).Error
 	if err != nil {
 		log.Println("Error updating batches : ", err)
@@ -264,22 +270,13 @@ func DisableBatch(batch entities.Batch, db *gorm.DB) error {
 		return err
 	}
 
-	err = jobs.RemoveBatches(batches, db)
-	if err != nil {
-		log.Println("Error removing jobs from the scheduler : ", err)
-		tx.Rollback()
-		return err
-	}
-
-	log.Println("Jobs removed from the scheduler.")
-
 	tx.Commit()
 
 	return nil
 }
 
 func EnableBatch(batch entities.Batch, db *gorm.DB) error {
-	if batch.Active == true {
+	if batch.Active {
 		log.Println("Batch already active")
 		return nil
 	}
@@ -296,7 +293,7 @@ func EnableBatch(batch entities.Batch, db *gorm.DB) error {
 	}
 	log.Println("Batch active field updated : ", batch.Active)
 
-	err = jobs.EnableBatch(batch, tx)
+	err = jobs.EnableBatch(batch, tx, db)
 	if err != nil {
 		log.Println("Error adding batch to the scheduler : ", err)
 		tx.Rollback()

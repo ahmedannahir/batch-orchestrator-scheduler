@@ -210,20 +210,38 @@ func RunAfterBatch(id *uint, batch entities.Batch, db *gorm.DB) error {
 }
 
 func RemoveBatches(batches []entities.Batch, db *gorm.DB) error {
-	for _, batch := range batches {
-		err := scheduler.RemoveByTag(strconv.FormatUint(uint64(batch.ID), 10))
-		if err != nil {
-			log.Println("Error removing batch from scheduler : ", batch.Url)
+	if batches[0].PreviousBatchID != nil {
+		var prevBatch entities.Batch
+		err := db.First(&prevBatch, batches[0].PreviousBatchID).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Println("Error retrieving previous batch : ", err)
 			return err
 		}
-		log.Println("Removed from the scheduler the batch : ", batch.Url)
+		jobs, err := scheduler.FindJobsByTag(strconv.FormatUint(uint64(prevBatch.ID), 10))
+		if err != nil {
+			log.Print("Error retrieving jobs from the scheduler : ", err)
+			return err
+		}
+		jobs[0].SetEventListeners(nil, nil)
 	}
 
+	for _, batch := range batches {
+		if batch.Active {
+			err := scheduler.RemoveByTag(strconv.FormatUint(uint64(batch.ID), 10))
+			if err != nil {
+				log.Println("Error removing batch from scheduler : ", batch.Url)
+				return err
+			}
+			log.Println("Removed from the scheduler the batch : ", batch.Url)
+		} else {
+			log.Println("Batch already inactive and removed from the scheduler : ", batch.Url)
+		}
+	}
 	return nil
 }
 
-func EnableBatch(batch entities.Batch, tx *gorm.DB) error {
-	err := ScheduleBatch(batch, tx)
+func EnableBatch(batch entities.Batch, tx *gorm.DB, db *gorm.DB) error {
+	err := ScheduleBatch(batch, db)
 	if err != nil {
 		return err
 	}
