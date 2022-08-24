@@ -38,10 +38,6 @@ or
 go run main.go
 ```
 
-## Usage
-
-When the program runs, it loads the batches from the database if there are any, then sets up a web API. Please refer to the routers/main.router.go file to consult the urls and http methods of the different routes.
-
 ## Structure
 
 The project's packages are the following :
@@ -50,8 +46,8 @@ The project's packages are the following :
 * **controllers** : Handles all the HTTP requests and responses received and sent by the API.
 * **services** : Handles all the business logic for the controllers.
 * **jobs** : Handles all the interactions and functions called by the scheduler.
-* **handlers** : Handles helping tasks for services and jobs related to os (uploading, unzipping..) or mail or non-straightforward database interactions.
-* **databases** : Initialize Gorm configuration and connection to the database.
+* **handlers** : Handles helping tasks for *services* and *jobs* related to os (uploading, unzipping..) or mail or non-straightforward database interactions.
+* **database** : Initialize Gorm configuration and connection to the database.
 * **entities** : Struct models mapped to database tables used for the ORM Gorm.
 * **models** : Struct models used for mapping other than database tables (json mapping...)
 
