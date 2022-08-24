@@ -9,6 +9,7 @@ type Batch struct {
 	Name            string
 	Description     string
 	Url             string
+	Args            *string
 	Independant     bool
 	Status          BatchStatus.BatchStatus
 	PrevBatchInput  bool  `gorm:"column:prevBatchInput"`
