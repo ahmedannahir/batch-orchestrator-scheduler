@@ -129,7 +129,7 @@ func getPermissionToRun(batch entities.Batch, db *gorm.DB) (bool, entities.Execu
 
 		// comparing duration between execution can be as narrow as we want
 		now := time.Now()
-		permission := now.Sub(*lastPrevBatchExec.EndTime).Seconds() < 1 && (lastPrevBatchExec.Status == ExecutionStatus.COMPLETED || batch.Independant)
+		permission := now.Sub(*lastPrevBatchExec.EndTime).Seconds() < 5 && (lastPrevBatchExec.Status == ExecutionStatus.COMPLETED || batch.Independant)
 		log.Println("Permission to run : ", permission, " | Independant : ", batch.Independant, " | PrevBatchID : ", batch.PreviousBatchID, " | LastPrevBatchExec : ", lastPrevBatchExec)
 		return permission, lastPrevBatchExec, nil
 	}
