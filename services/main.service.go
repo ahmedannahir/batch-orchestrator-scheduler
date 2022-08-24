@@ -96,6 +96,10 @@ func SaveBatch(config models.Config, batchPath string, prevBatchId *uint, db *go
 		PreviousBatchID: prevBatchId,
 		ProfileID:       &profileId,
 	}
+	if len(config.Args) > 0 {
+		args := strings.Join(config.Args, " ")
+		batch.Args = &args
+	}
 
 	err = handlers.SaveBatch(&batch, db)
 	if err != nil {
@@ -128,6 +132,11 @@ func SaveConsecBatches(configs []models.Config, batchesPaths []string, db *gorm.
 			Independant:    configs[i].Independant,
 			PrevBatchInput: configs[i].PrevBatchInput,
 			ProfileID:      &profileId,
+		}
+
+		if len(configs[i].Args) > 0 {
+			args := strings.Join(configs[i].Args, " ")
+			batch.Args = &args
 		}
 
 		batches = append(batches, batch)

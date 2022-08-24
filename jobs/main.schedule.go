@@ -50,6 +50,9 @@ func RunBatch(lastPrevBatchExec entities.Execution, batch entities.Batch, db *go
 
 	var cmdParts []string
 	cmdParts = append(cmdParts, "bash", script)
+	if batch.Args != nil {
+		cmdParts = append(cmdParts, *batch.Args)
+	}
 
 	if batch.PrevBatchInput && batch.PreviousBatchID != nil {
 		cmdParts = append(cmdParts, *lastPrevBatchExec.LogFileUrl)
