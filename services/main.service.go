@@ -74,8 +74,6 @@ func MatchBatchAndConfig(configs []models.Config, batchPaths *[]string) {
 }
 
 func SaveBatch(config models.Config, batchPath string, prevBatchId *uint, tx *gorm.DB, c *gin.Context) (entities.Batch, error) {
-	batchName := c.PostForm("batchName")
-	batchDesc := c.PostForm("batchDesc")
 	profileIdStr := c.PostForm("profileId")
 	profileId64, err := strconv.ParseUint(profileIdStr, 10, 64)
 	if err != nil {
@@ -84,8 +82,8 @@ func SaveBatch(config models.Config, batchPath string, prevBatchId *uint, tx *go
 	profileId := uint(profileId64)
 
 	batch := entities.Batch{
-		Name:            batchName,
-		Description:     batchDesc,
+		Name:            config.JobName,
+		Description:     config.JobDesc,
 		Url:             batchPath,
 		Timing:          config.Cron,
 		Active:          true,
@@ -111,8 +109,6 @@ func SaveBatch(config models.Config, batchPath string, prevBatchId *uint, tx *go
 func SaveConsecBatches(configs []models.Config, batchesPaths []string, tx *gorm.DB, c *gin.Context) ([]entities.Batch, error) {
 	var batches []entities.Batch
 
-	batchName := c.PostForm("batchName")
-	batchDesc := c.PostForm("batchDesc")
 	profileIdStr := c.PostForm("profileId")
 	profileId64, err := strconv.ParseUint(profileIdStr, 10, 64)
 	if err != nil {
@@ -122,8 +118,8 @@ func SaveConsecBatches(configs []models.Config, batchesPaths []string, tx *gorm.
 
 	for i := 0; i < len(configs); i++ {
 		batch := entities.Batch{
-			Name:           batchName,
-			Description:    batchDesc,
+			Name:           configs[i].JobName,
+			Description:    configs[i].JobDesc,
 			Url:            batchesPaths[i],
 			Timing:         configs[i].Cron,
 			Active:         true,
