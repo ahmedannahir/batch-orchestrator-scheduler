@@ -30,12 +30,12 @@ func Init() *gorm.DB {
 
 	db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	err = db.AutoMigrate(&entities.User{}, &entities.Profile{}, &entities.Batch{}, &entities.Execution{})
 	if err != nil {
-		log.Fatal("Error migrating schemas : ", err)
+		log.Println("Error migrating schemas : ", err)
 	}
 
 	return db
