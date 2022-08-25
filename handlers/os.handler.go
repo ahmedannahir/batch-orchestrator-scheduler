@@ -142,11 +142,5 @@ func UnzipFile(archivePath string, dest string, perm fs.FileMode) error {
 		fileInArchive.Close()
 	}
 
-	archive.Close()
-	err = os.Remove(archivePath)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
