@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func SaveBatch(batch *entities.Batch, db *gorm.DB) error {
+func SaveBatch(batch *entities.Batch, tx *gorm.DB) error {
 	log.Println("Saving config and batch in the database...")
 	if batch.PreviousBatchID != nil {
 		batch.Timing = "1 1 30 2 1"
@@ -19,29 +19,23 @@ func SaveBatch(batch *entities.Batch, db *gorm.DB) error {
 		batch.Independant = true
 	}
 
-	tx := db.Begin()
-
 	err := tx.Create(batch).Error
 	if err != nil {
-		tx.Rollback()
 		log.Println("An error has occured. Config and batch not saved to db : ", err)
 		return err
 	}
 
-	tx.Commit()
 	log.Println("Batch saved to db : ", *batch)
 
 	return nil
 }
 
-func SaveConsecBatches(batches *[]entities.Batch, batchesPaths []string, db *gorm.DB) error {
+func SaveConsecBatches(batches *[]entities.Batch, batchesPaths []string, tx *gorm.DB) error {
 	log.Println("Saving config and the batches in the database...")
-	tx := db.Begin()
 
 	err := tx.Create(batches).Error
 	if err != nil {
 		log.Println("An error has occured. Config and batches not saved to db : ", err)
-		tx.Rollback()
 		return err
 	}
 	for i := 1; i < len(*batches); i++ {
@@ -51,11 +45,9 @@ func SaveConsecBatches(batches *[]entities.Batch, batchesPaths []string, db *gor
 	err = tx.Save(&batches).Error
 	if err != nil {
 		log.Println("An error has occured. Config and batches not saved to db : ", err)
-		tx.Rollback()
 		return err
 	}
 
-	tx.Commit()
 	log.Println("Batches saved to db : ", *batches)
 
 	return nil

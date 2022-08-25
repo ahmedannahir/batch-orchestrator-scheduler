@@ -190,12 +190,14 @@ func ScheduleConsecBatches(batches []entities.Batch, db *gorm.DB) error {
 		err := twoConsecBatch(batches[i:i+2], db)
 		if err != nil {
 			log.Println("error scheduling subsequent batch ", i+1, " : ", err)
+			return err
 		}
 	}
 
 	err := ScheduleBatch(batches[len(batches)-1], db)
 	if err != nil {
 		log.Println("error scheduling subsequent batch ", len(batches), " : ", err)
+		return err
 	}
 
 	return nil
