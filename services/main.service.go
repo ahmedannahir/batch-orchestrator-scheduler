@@ -56,8 +56,7 @@ func CreateLog(batch entities.Batch) (*os.File, error) {
 
 func ScheduleConsecBatches(batches []entities.Batch, db *gorm.DB) error {
 	log.Println("Scheduling the consecutive batches...")
-	err := jobs.ScheduleConsecBatches(batches, db)
-	return err
+	return jobs.ScheduleConsecBatches(batches, db)
 }
 
 // TO BE FIXED: Not working as intended - duplicating entries
@@ -74,7 +73,7 @@ func MatchBatchAndConfig(configs []models.Config, batchPaths *[]string) {
 	*batchPaths = sorted
 }
 
-func SaveBatch(config models.Config, batchPath string, prevBatchId *uint, db *gorm.DB, c *gin.Context) (entities.Batch, error) {
+func SaveBatch(config models.Config, batchPath string, prevBatchId *uint, tx *gorm.DB, c *gin.Context) (entities.Batch, error) {
 	batchName := c.PostForm("batchName")
 	batchDesc := c.PostForm("batchDesc")
 	profileIdStr := c.PostForm("profileId")
@@ -101,7 +100,7 @@ func SaveBatch(config models.Config, batchPath string, prevBatchId *uint, db *go
 		batch.Args = &args
 	}
 
-	err = handlers.SaveBatch(&batch, db)
+	err = handlers.SaveBatch(&batch, tx)
 	if err != nil {
 		return entities.Batch{}, err
 	}
@@ -109,7 +108,7 @@ func SaveBatch(config models.Config, batchPath string, prevBatchId *uint, db *go
 	return batch, nil
 }
 
-func SaveConsecBatches(configs []models.Config, batchesPaths []string, db *gorm.DB, c *gin.Context) ([]entities.Batch, error) {
+func SaveConsecBatches(configs []models.Config, batchesPaths []string, tx *gorm.DB, c *gin.Context) ([]entities.Batch, error) {
 	var batches []entities.Batch
 
 	batchName := c.PostForm("batchName")
@@ -142,7 +141,7 @@ func SaveConsecBatches(configs []models.Config, batchesPaths []string, db *gorm.
 		batches = append(batches, batch)
 	}
 
-	err = handlers.SaveConsecBatches(&batches, batchesPaths, db)
+	err = handlers.SaveConsecBatches(&batches, batchesPaths, tx)
 	if err != nil {
 		return nil, err
 	}

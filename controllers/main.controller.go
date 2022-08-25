@@ -36,9 +36,12 @@ func ScheduleBatch(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		batch, err := services.SaveBatch(config, dst, nil, db, c)
+		tx := db.Begin()
+
+		batch, err := services.SaveBatch(config, dst, nil, tx, c)
 		if err != nil {
 			log.Println(err)
+			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 			return
 		}
@@ -46,9 +49,12 @@ func ScheduleBatch(db *gorm.DB) gin.HandlerFunc {
 		err = services.ScheduleBatch(batch, db)
 		if err != nil {
 			log.Println(err)
+			tx.Rollback()
 			c.JSON(http.StatusBadRequest, gin.H{"error": err})
 			return
 		}
+
+		tx.Commit()
 
 		c.JSON(http.StatusCreated, batch)
 	}
@@ -92,9 +98,12 @@ func ConsecutiveBatches(db *gorm.DB) gin.HandlerFunc {
 			batchDests = append(batchDests, dest)
 		}
 
-		batches, err := services.SaveConsecBatches(configs, batchDests, db, c)
+		tx := db.Begin()
+
+		batches, err := services.SaveConsecBatches(configs, batchDests, tx, c)
 		if err != nil {
 			log.Println(err)
+			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 			return
 		}
@@ -102,9 +111,12 @@ func ConsecutiveBatches(db *gorm.DB) gin.HandlerFunc {
 		err = services.ScheduleConsecBatches(batches, db)
 		if err != nil {
 			log.Println(err)
+			tx.Rollback()
 			c.JSON(http.StatusBadRequest, gin.H{"error": err})
 			return
 		}
+
+		tx.Commit()
 
 		c.JSON(http.StatusCreated, batches)
 	}
@@ -146,9 +158,12 @@ func RunAfterBatch(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		batch, err := services.SaveBatch(config, dest, prevBatchId, db, c)
+		tx := db.Begin()
+
+		batch, err := services.SaveBatch(config, dest, prevBatchId, tx, c)
 		if err != nil {
 			log.Println(err)
+			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 			return
 		}
@@ -156,9 +171,12 @@ func RunAfterBatch(db *gorm.DB) gin.HandlerFunc {
 		err = services.RunAfterBatch(prevBatchId, config, batch, db)
 		if err != nil {
 			log.Println(err)
+			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 			return
 		}
+
+		tx.Commit()
 
 		c.JSON(http.StatusCreated, batch)
 	}
