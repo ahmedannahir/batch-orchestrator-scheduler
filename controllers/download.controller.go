@@ -23,6 +23,10 @@ func DownloadBatch(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		batch.Url += ".zip"
+
+		log.Println("Batch path = ", batch.Url)
+
 		c.Header("Content-Disposition", "attachment; filename="+batch.Url)
 		c.Header("Content-Disposition", "inline;filename="+batch.Url)
 		c.Header("Content-Transfer-Encoding", "binary")
