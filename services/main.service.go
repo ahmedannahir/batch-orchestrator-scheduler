@@ -89,7 +89,6 @@ func SaveBatch(config models.Config, batchPath string, prevBatchId *uint, tx *go
 		Active:          true,
 		Status:          BatchStatus.IDLE,
 		Independant:     config.Independant,
-		PrevBatchInput:  config.PrevBatchInput,
 		PreviousBatchID: prevBatchId,
 		ProfileID:       &profileId,
 	}
@@ -118,15 +117,14 @@ func SaveConsecBatches(configs []models.Config, batchesPaths []string, tx *gorm.
 
 	for i := 0; i < len(configs); i++ {
 		batch := entities.Batch{
-			Name:           configs[i].JobName,
-			Description:    configs[i].JobDesc,
-			Url:            batchesPaths[i],
-			Timing:         configs[i].Cron,
-			Active:         true,
-			Status:         BatchStatus.IDLE,
-			Independant:    configs[i].Independant,
-			PrevBatchInput: configs[i].PrevBatchInput,
-			ProfileID:      &profileId,
+			Name:        configs[i].JobName,
+			Description: configs[i].JobDesc,
+			Url:         batchesPaths[i],
+			Timing:      configs[i].Cron,
+			Active:      true,
+			Status:      BatchStatus.IDLE,
+			Independant: configs[i].Independant,
+			ProfileID:   &profileId,
 		}
 
 		if len(configs[i].Args) > 0 {

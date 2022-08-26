@@ -12,7 +12,6 @@ type Batch struct {
 	Args            *string
 	Independant     bool
 	Status          BatchStatus.BatchStatus
-	PrevBatchInput  bool  `gorm:"column:prevBatchInput"`
 	PreviousBatchID *uint `gorm:"unique;column:previousBatchId"`
 	PreviousBatch   *Batch
 	ProfileID       *uint       `gorm:"column:profileId;not null"`
