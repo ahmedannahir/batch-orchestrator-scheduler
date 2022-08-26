@@ -54,10 +54,6 @@ func RunBatch(lastPrevBatchExec entities.Execution, batch entities.Batch, db *go
 		cmdParts = append(cmdParts, *batch.Args)
 	}
 
-	if batch.PrevBatchInput && batch.PreviousBatchID != nil {
-		cmdParts = append(cmdParts, *lastPrevBatchExec.LogFileUrl)
-	}
-
 	log.Println("Running batch : " + batch.Url + "...")
 	cmd := exec.Command(cmdParts[0], cmdParts[1:]...)
 	cmd.Stdout = logFile
