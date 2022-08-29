@@ -6,13 +6,13 @@
 The main functionality of this project consists of scheduling, configuring and monitoring batches.  
 
 The user can schedule one or more multiple batches using Cron.  
-The user also has additional options, such as passing arguments to the batch, and independancy, meaning choosing if the batch can run if the previous batch threw an error ~~and previous batch input, meaning reading the output of the execution of the past batch. The latter can allow passing data between separate data and can be used as means of communication between batches.~~  
+The user also has additional options for subsequent batches in case of multiple, such as: independancy, meaning choosing if the batch can run if the previous batch threw an error, and previous batch input, meaning reading the output of the execution of the past batch. The latter can allow passing data between separate data and can be used as means of communication between batches.  
 The user can additionally add a batch to run after an existing batch, this also allows all the aforementioned additional options of the subsequent batches.  
 The user can also download the logs of a batch's executions by providing the id of the execution.  
-The user can furthermore disable or enable a batch. Disabling removes the job running the batch from the scheduler but keeps its data in case the user wants to re-enable the batch.  
-Everytime a batch is done running, an email is sent to the user that added the batch containing the details of that batch's execution (Status, exit code, start time, end time...)  
+The user can furthermore disable or enable a batch. Disabling removes the job running the batch from the scheduler but keeps its data in case the user wants to re-enable the batch. 
+Everytime a batch is done running, an email is sent to the user that added the batch containing the details of that batch's execution (Status, exit code, start time, end time...) 
 
-The following are functionalities we have yet to implement: Monitor a batch's execution progress, real-time monitoring of the output of the batch and allow adding another batch that runs in case of an error.  
+The following are functionalities we have yet to implement: Monitor a batch's execution progress, real-time monitoring of the output of the batch and allow adding another batch that runs in case of an error.
 
 ## Installation
 
