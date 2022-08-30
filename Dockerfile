@@ -15,5 +15,5 @@ COPY . .
 RUN go build -o /go-batch-scheduling
 
 # run
-CMD [ "/go-batch-scheduling" ]
+ENTRYPOINT [ "/go-batch-scheduling" ]
 
