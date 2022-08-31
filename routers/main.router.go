@@ -21,5 +21,5 @@ func HandleRoutes(db *gorm.DB) {
 	MainRouter.GET("/download/batch/:id", controllers.DownloadBatch(db))
 	MainRouter.GET("/download/log/:id", controllers.DownloadLog(db))
 
-	MainRouter.Run("127.0.0.1:8080")
+	MainRouter.Run()
 }
