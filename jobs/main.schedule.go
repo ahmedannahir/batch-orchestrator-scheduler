@@ -49,7 +49,7 @@ func RunBatch(lastPrevBatchExec entities.Execution, batch entities.Batch, db *go
 	script := filepath.Join(batch.Url, "script.sh")
 
 	var cmdParts []string
-	cmdParts = append(cmdParts, "bash", script)
+	cmdParts = append(cmdParts, "sh", script)
 	if batch.Args != nil {
 		cmdParts = append(cmdParts, *batch.Args)
 	}
@@ -58,6 +58,7 @@ func RunBatch(lastPrevBatchExec entities.Execution, batch entities.Batch, db *go
 		cmdParts = append(cmdParts, *lastPrevBatchExec.LogFileUrl)
 	}
 
+	log.Println(os.Getwd())
 	log.Println("Running batch : " + batch.Url + "...")
 	cmd := exec.Command(cmdParts[0], cmdParts[1:]...)
 	cmd.Stdout = logFile

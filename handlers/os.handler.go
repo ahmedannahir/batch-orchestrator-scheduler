@@ -130,7 +130,8 @@ func UnzipFile(archivePath string, dest string, perm fs.FileMode) error {
 
 		// We add these lines in the begining of script.sh to get the current directory to where the file is
 		if f.Name == "script.sh" {
-			dstFile.WriteString(fmt.Sprintln("cd dirname \"${BASH_SOURCE[0]}\""))
+			// Uncomment the next line if you are on windows
+			// dstFile.WriteString(fmt.Sprintln("cd dirname \"${BASH_SOURCE[0]}\""))
 			dstFile.WriteString(fmt.Sprintln("cd " + dest))
 		}
 
