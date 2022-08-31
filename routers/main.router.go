@@ -20,6 +20,7 @@ func HandleRoutes(db *gorm.DB) {
 	MainRouter.POST("/enable-batch/:id", controllers.EnableBatch(db))
 	MainRouter.GET("/download/batch/:id", controllers.DownloadBatch(db))
 	MainRouter.GET("/download/log/:id", controllers.DownloadLog(db))
+	MainRouter.GET("/download/err-log/:id", controllers.DownloadErrLog(db))
 
 	MainRouter.Run()
 }

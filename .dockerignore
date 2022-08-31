@@ -1,0 +1,11 @@
+/node_modules
+package-lock.json
+package.json
+jobs/logs
+jobs/scripts
+jobs/configs
+jobs/batches
+/.idea
+.env
+*.code-workspace
+.vscode
