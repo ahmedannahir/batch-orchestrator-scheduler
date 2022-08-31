@@ -231,6 +231,7 @@ func LoadBatchesFromDB(db *gorm.DB) error {
 		}
 	}
 
+	log.Println("Batches from the database are loaded and scheduled.")
 	return nil
 }
 
