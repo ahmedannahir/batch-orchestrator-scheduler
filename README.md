@@ -24,7 +24,7 @@ go mod download
 ```
 4. To run batches, the program runs the command :
 ```
-bash script.sh
+sh script.sh
 ```
 So, make sure your command terminal recognize "bash". If you already have GIT installed, I suggest adding the bin folder inside GIT's installation directory to PATH sytem variables, and testing the command before with a simple .sh file containing the following script before running the program :
 ```
