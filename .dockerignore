@@ -1,11 +1,11 @@
-/node_modules
+node_modules
 package-lock.json
 package.json
 jobs/logs
 jobs/scripts
 jobs/configs
 jobs/batches
-/.idea
+.idea
 .env
 *.code-workspace
 .vscode

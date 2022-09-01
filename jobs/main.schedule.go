@@ -84,7 +84,7 @@ func RunBatch(lastPrevBatchExec entities.Execution, batch entities.Batch, db *go
 
 	err = handlers.SendExecInfosMail(batch, execution, db)
 	if err != nil {
-		return err
+		log.Println(err)
 	}
 
 	return nil
